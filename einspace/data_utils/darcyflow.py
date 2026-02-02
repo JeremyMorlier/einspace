@@ -1,24 +1,13 @@
-from imghdr import tests
-from typing import Callable, Optional, Union
-
 import torch
-# import pytorch_lightning as pl
+
 import numpy as np
 import pickle
-import os
 import scipy
 import h5py
-import random
-# from pytorch_lightning.utilities.cli import DATAMODULE_REGISTRY
+
 from torchvision import transforms
-from torch.utils.data import Dataset, DataLoader, TensorDataset, Subset
-from collections import Counter
-from sklearn.model_selection import train_test_split
+from torch.utils.data import Subset
 
-
-import operator
-from functools import reduce
-from functools import partial
 
 class LpLoss(object):
     def __init__(self, d=2, p=2, size_average=True, reduction=True):
@@ -31,7 +20,7 @@ class LpLoss(object):
         self.p = p
         self.reduction = reduction
         self.size_average = size_average
-        self.y_normalizer = pickle.load(open(f".tmp/y_normalizer.pkl", "rb"))
+        self.y_normalizer = pickle.load(open(".tmp/y_normalizer.pkl", "rb"))
 
     def abs(self, x, y):
         num_examples = x.size()[0]
@@ -52,10 +41,11 @@ class LpLoss(object):
         return all_norms
 
     def rel(self, x, y):
-
         num_examples = x.size()[0]
 
-        diff_norms = torch.norm(x.reshape(num_examples, -1) - y.reshape(num_examples, -1), self.p, 1)
+        diff_norms = torch.norm(
+            x.reshape(num_examples, -1) - y.reshape(num_examples, -1), self.p, 1
+        )
         y_norms = torch.norm(y.reshape(num_examples, -1), self.p, 1)
 
         if self.reduction:
@@ -85,6 +75,7 @@ class LpLoss(object):
         # print("view   y", x.shape, y.mean(), y.std())
         return self.rel(x, y)
 
+
 class MatReader(object):
     def __init__(self, file_path, to_torch=True, to_cuda=False, to_float=True):
         super(MatReader, self).__init__()
@@ -103,7 +94,8 @@ class MatReader(object):
         try:
             self.data = scipy.io.loadmat(self.file_path)
             self.old_mat = True
-        except:
+        except Exception as e:
+            print(e)
             self.data = h5py.File(self.file_path)
             self.old_mat = False
 
@@ -140,6 +132,7 @@ class MatReader(object):
 
     def set_float(self, to_float):
         self.to_float = to_float
+
 
 # normalization, pointwise gaussian
 class UnitGaussianNormalizer(object):
@@ -234,6 +227,5 @@ def load_darcyflow_data(path):
 def build_nasbench360_darcy_dataset(cfg_dict):
     path = cfg_dict["darcy_root"]
     trainset, valset, testset, y_normalizer = load_darcyflow_data(path)
-    pickle.dump(y_normalizer, open(f".tmp/y_normalizer.pkl", "wb"))
+    pickle.dump(y_normalizer, open(".tmp/y_normalizer.pkl", "wb"))
     return trainset, valset, testset, y_normalizer
-

@@ -23,7 +23,12 @@ pip install tqdm scipy einops positional_encodings seaborn sympy h5py librosa
 pip install -r requirements.txt
 pip install -e .
 ```
+#### With UV
 
+```shell
+uv sync
+uv pip install --no-build-isolation  git+https://github.com/mohsaied/zero-cost-nas#egg=foresight
+```
 ### Data Setup
 Please follow the official instructions of [UnseenNAS](https://github.com/Towers-D/NAS-Unseen-Datasets?tab=readme-ov-file) and [NASBench360](https://github.com/rtu715/NAS-Bench-360) to setup the dataset, after which you can place the files using the following arrangement.
 ```

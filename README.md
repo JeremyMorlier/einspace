@@ -28,7 +28,33 @@ pip install -e .
 ```shell
 uv sync
 uv pip install --no-build-isolation  git+https://github.com/mohsaied/zero-cost-nas#egg=foresight
+uv pip install -e .
 ```
+##### aspell
+
+mkdir .aspell
+
+
+'en', 'nl', 'de', 'es', 'fr', 'pt_PT', 'sw', 'zu', 'fi', 'sv'
+wget https://ftp.gnu.org/gnu/aspell/dict/en/aspell6-en-2020.12.07-0.tar.bz2
+wget https://ftp.gnu.org/gnu/aspell/dict/de/aspell6-de-20161207-7-0.tar.bz2
+wget https://ftp.gnu.org/gnu/aspell/dict/es/aspell6-es-1.11-2.tar.bz2
+wget https://ftp.gnu.org/gnu/aspell/dict/pt_PT/aspell6-pt_PT-20190329-1-0.tar.bz2
+wget https://ftp.gnu.org/gnu/aspell/dict/nl/aspell-nl-0.50-2.tar.bz2
+wget https://ftp.gnu.org/gnu/aspell/dict/fr/aspell-fr-0.50-3.tar.bz2
+wget https://ftp.gnu.org/gnu/aspell/dict/sw/aspell-sw-0.50-0.tar.bz2
+wget https://ftp.gnu.org/gnu/aspell/dict/zu/aspell-zu-0.50-0.tar.bz2
+wget https://ftp.gnu.org/gnu/aspell/dict/sv/aspell-sv-0.51-0.tar.bz2
+wget https://ftp.gnu.org/gnu/aspell/dict/fi/aspell6-fi-0.7-0.tar.bz2
+
+for f in *.tar.bz2; do tar -xf "$f"; done
+
+for d in */; do
+  echo "Building $d"
+  (cd "$d" && ./configure && make && make install dictdir=../../.aspell/ datadir=../../.aspell/)
+done
+
+aspell dicts
 ### Data Setup
 Please follow the official instructions of [UnseenNAS](https://github.com/Towers-D/NAS-Unseen-Datasets?tab=readme-ov-file) and [NASBench360](https://github.com/rtu715/NAS-Bench-360) to setup the dataset, after which you can place the files using the following arrangement.
 ```

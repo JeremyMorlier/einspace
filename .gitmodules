@@ -1,0 +1,3 @@
+[submodule "cvpr-nas-datasets"]
+	path = cvpr-nas-datasets
+	url = https://github.com/RobGeada/cvpr-nas-datasets

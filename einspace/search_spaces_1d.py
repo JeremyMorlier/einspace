@@ -1,16 +1,14 @@
 import time
 from collections import OrderedDict
 from copy import deepcopy
-from math import sqrt
-from pprint import pprint
-from random import choice, choices, randint
+from random import choice, choices
 
 import psutil
 import torch
 
-from einspace.activations import *
+import einspace.activations as einact
 from einspace.compiler import Compiler
-from einspace.layers import *
+import einspace.layers as einl
 from einspace.utils import (
     ArchitectureCompilationError,
     SearchSpaceSamplingError,
@@ -46,52 +44,52 @@ class EinSpace1d:
     """
 
     modules_without_computation_module = [
-        sequential_module,
-        branching_module,
-        routing_module,
+        einl.sequential_module,
+        einl.branching_module,
+        einl.routing_module,
     ]
     modules = [
-        sequential_module,
-        branching_module,
-        routing_module,
-        computation_module,
+        einl.sequential_module,
+        einl.branching_module,
+        einl.routing_module,
+        einl.computation_module,
     ]
     branching_fns = [
-        clone_tensor2,
-        clone_tensor4,
-        clone_tensor8,
-        group_dim2s1d,
-        group_dim2s2d,
-        group_dim2s3d,
-        group_dim4s1d,
-        group_dim4s2d,
-        group_dim4s3d,
-        group_dim8s1d,
-        group_dim8s2d,
-        group_dim8s3d,
+        einl.clone_tensor2,
+        einl.clone_tensor4,
+        einl.clone_tensor8,
+        einl.group_dim2s1d,
+        einl.group_dim2s2d,
+        einl.group_dim2s3d,
+        einl.group_dim4s1d,
+        einl.group_dim4s2d,
+        einl.group_dim4s3d,
+        einl.group_dim8s1d,
+        einl.group_dim8s2d,
+        einl.group_dim8s3d,
     ]
     aggregation_fns = [
-        dot_product,
-        scaled_dot_product,
-        add_tensors,
-        cat_tensors1d2t,
-        cat_tensors2d2t,
-        cat_tensors3d2t,
-        cat_tensors1d4t,
-        cat_tensors2d4t,
-        cat_tensors3d4t,
-        cat_tensors1d8t,
-        cat_tensors2d8t,
-        cat_tensors3d8t,
+        einl.dot_product,
+        einl.scaled_dot_product,
+        einl.add_tensors,
+        einl.cat_tensors1d2t,
+        einl.cat_tensors2d2t,
+        einl.cat_tensors3d2t,
+        einl.cat_tensors1d4t,
+        einl.cat_tensors2d4t,
+        einl.cat_tensors3d4t,
+        einl.cat_tensors1d8t,
+        einl.cat_tensors2d8t,
+        einl.cat_tensors3d8t,
     ]
     prerouting_fns = [
-        identity,
-        permute21,
-        permute132,
-        permute213,
-        permute231,
-        permute312,
-        permute321,
+        einact.identity,
+        einl.permute21,
+        einl.permute132,
+        einl.permute213,
+        einl.permute231,
+        einl.permute312,
+        einl.permute321,
         # im2col1k1s0p,
         # im2col1k2s0p,
         # im2col3k1s1p,
@@ -101,45 +99,45 @@ class EinSpace1d:
         # im2col16k16s0p,
     ]
     postrouting_fns = [
-        identity,
-        permute21,
-        permute132,
-        permute213,
-        permute231,
-        permute312,
-        permute321,
+        einact.identity,
+        einl.permute21,
+        einl.permute132,
+        einl.permute213,
+        einl.permute231,
+        einl.permute312,
+        einl.permute321,
         # col2im,
     ]
     computation_fns = [
-        identity,
-        linear16,
-        linear32,
-        linear64,
-        linear128,
-        linear256,
-        linear512,
-        linear1024,
-        linear2048,
-        conv1d8k1s3p32d,
-        conv1d8k1s3p64d,
-        conv1d8k1s3p128d,
-        conv1d8k1s3p256d,
-        conv1d5k1s2p32d,
-        conv1d5k1s2p64d,
-        conv1d5k1s2p128d,
-        conv1d5k1s2p256d,
-        conv1d3k1s1p32d,
-        conv1d3k1s1p64d,
-        conv1d3k1s1p128d,
-        conv1d3k1s1p256d,
-        conv1d1k1s0p32d,
-        conv1d1k1s0p64d,
-        conv1d1k1s0p128d,
-        conv1d1k1s0p256d,
-        norm,
-        leakyrelu,
-        softmax,
-        learnable_positional_encoding,
+        einact.identity,
+        einl.linear16,
+        einl.linear32,
+        einl.linear64,
+        einl.linear128,
+        einl.linear256,
+        einl.linear512,
+        einl.linear1024,
+        einl.linear2048,
+        einl.conv1d8k1s3p32d,
+        einl.conv1d8k1s3p64d,
+        einl.conv1d8k1s3p128d,
+        einl.conv1d8k1s3p256d,
+        einl.conv1d5k1s2p32d,
+        einl.conv1d5k1s2p64d,
+        einl.conv1d5k1s2p128d,
+        einl.conv1d5k1s2p256d,
+        einl.conv1d3k1s1p32d,
+        einl.conv1d3k1s1p64d,
+        einl.conv1d3k1s1p128d,
+        einl.conv1d3k1s1p256d,
+        einl.conv1d1k1s0p32d,
+        einl.conv1d1k1s0p64d,
+        einl.conv1d1k1s0p128d,
+        einl.conv1d1k1s0p256d,
+        einl.norm,
+        einact.leakyrelu,
+        einact.softmax,
+        einl.learnable_positional_encoding,
     ]
 
     # the functions which make up the terminals of the search space
@@ -245,9 +243,7 @@ class EinSpace1d:
             # if the sampling has taken too long, we raise an error
             k = 5
             if sampling_time > 60 * k:
-                raise TimeoutError(
-                    f"Sampling took more than {k} minutes. Restarting."
-                )
+                raise TimeoutError(f"Sampling took more than {k} minutes. Restarting.")
             # if we run out of options to try at this level
             # we raise an error that will propagate back to the previous level
             if len(options) == 0:
@@ -267,8 +263,7 @@ class EinSpace1d:
                         (
                             self.computation_module_prob
                             if fn.__name__ == "computation_module"
-                            else (1 - self.computation_module_prob)
-                            / (len(options) - 1)
+                            else (1 - self.computation_module_prob) / (len(options) - 1)
                         )
                         for fn in options
                     ]
@@ -321,10 +316,10 @@ class EinSpace1d:
             # if we have reached the maximum number of modules, we force the computation_module
             # to be chosen, which will prevent the recursion from going deeper
             if module_depth >= self.max_module_depth:
-                options = [computation_module]
+                options = [einl.computation_module]
             # if we have not yet reached the minimum number of modules, we remove all options
             elif module_depth < self.min_module_depth:
-                options.remove(computation_module)
+                options.remove(einl.computation_module)
         # print("all options", [fn.__name__ for fn in options])
         # routing function filtering
         if level in ["prerouting_fn", "postrouting_fn"]:
@@ -336,10 +331,7 @@ class EinSpace1d:
                 options = [fn for fn in options if fn.__name__ != "permute21"]
                 # and remove all im2col functions that are too big for the input size
                 for kernel_size in [16, 8, 4, 3]:
-                    if (
-                        input_shape[2] < kernel_size
-                        or input_shape[3] < kernel_size
-                    ):
+                    if input_shape[2] < kernel_size or input_shape[3] < kernel_size:
                         options = [
                             fn
                             for fn in options
@@ -370,11 +362,11 @@ class EinSpace1d:
         elif level == "branching_fn":
             # if a dimension is odd, we remove the branching functions that split along that dimension
             if input_shape[1] % 2 != 0:
-                options = [fn for fn in options if not "1d" in fn.__name__]
+                options = [fn for fn in options if "1d" not in fn.__name__]
             if input_shape[2] % 2 != 0:
-                options = [fn for fn in options if not "2d" in fn.__name__]
+                options = [fn for fn in options if "2d" not in fn.__name__]
             if input_mode == "im" and input_shape[3] % 2 != 0:
-                options = [fn for fn in options if not "3d" in fn.__name__]
+                options = [fn for fn in options if "3d" not in fn.__name__]
             # if dimension is too small, remove the branching functions which larger splits along that dimension
             num_dims = 3 if input_mode == "im" else 2
             for dim in range(1, num_dims + 1):
@@ -429,8 +421,7 @@ class EinSpace1d:
                         options = [
                             fn
                             for fn in options
-                            if fn.__name__
-                            not in ["dot_product", "scaled_dot_product"]
+                            if fn.__name__ not in ["dot_product", "scaled_dot_product"]
                         ]
                     # if the input mode is "col", we remove the functions that operate on 4D tensors
                     options = [
@@ -452,8 +443,7 @@ class EinSpace1d:
                         options = [
                             fn
                             for fn in options
-                            if fn.__name__
-                            not in ["dot_product", "scaled_dot_product"]
+                            if fn.__name__ not in ["dot_product", "scaled_dot_product"]
                         ]
                 else:
                     raise ArchitectureCompilationError(
@@ -498,14 +488,10 @@ class EinSpace1d:
                     torch.tensor(input_shape[1:]),
                     torch.tensor(other_shape[1:]),
                 ):
-                    options = [
-                        fn for fn in options if fn.__name__ != "add_tensors"
-                    ]
+                    options = [fn for fn in options if fn.__name__ != "add_tensors"]
             else:
                 raise ArchitectureCompilationError(
-                    "other_shape is None, but it should not be. Level: "
-                    + level
-                    + "."
+                    "other_shape is None, but it should not be. Level: " + level + "."
                 )
         # print("filtered options", [fn.__name__ for fn in options])
         # f.write(f"\t post-filtering options: {[fn.__name__ for fn in options]}\n")
@@ -569,9 +555,7 @@ class EinSpace1d:
                     "last_im_input_shape": last_im_input_shape,
                     "output_shape": second_fn["output_shape"],
                     "output_mode": second_fn["output_mode"],
-                    "output_branching_factor": second_fn[
-                        "output_branching_factor"
-                    ],
+                    "output_branching_factor": second_fn["output_branching_factor"],
                     "depth": module_depth,
                     "node_type": "nonterminal",
                 }
@@ -597,9 +581,7 @@ class EinSpace1d:
                         "inner_fn",
                         input_shape=branching_fn["output_shape"],
                         input_mode=branching_fn["output_mode"],
-                        input_branching_factor=branching_fn[
-                            "output_branching_factor"
-                        ],
+                        input_branching_factor=branching_fn["output_branching_factor"],
                         last_im_input_shape=last_im_input_shape,
                         module_depth=module_depth + 1,
                     ),
@@ -608,9 +590,7 @@ class EinSpace1d:
                         "inner_fn",
                         input_shape=branching_fn["output_shape"],
                         input_mode=branching_fn["output_mode"],
-                        input_branching_factor=branching_fn[
-                            "output_branching_factor"
-                        ],
+                        input_branching_factor=branching_fn["output_branching_factor"],
                         last_im_input_shape=last_im_input_shape,
                         module_depth=module_depth + 1,
                     ),
@@ -622,9 +602,7 @@ class EinSpace1d:
                     "inner_fn",
                     input_shape=branching_fn["output_shape"],
                     input_mode=branching_fn["output_mode"],
-                    input_branching_factor=branching_fn[
-                        "output_branching_factor"
-                    ],
+                    input_branching_factor=branching_fn["output_branching_factor"],
                     last_im_input_shape=last_im_input_shape,
                     module_depth=module_depth + 1,
                 )
@@ -695,9 +673,7 @@ class EinSpace1d:
                 "inner_fn",
                 input_shape=prerouting_fn["output_shape"],
                 input_mode=prerouting_fn["output_mode"],
-                input_branching_factor=prerouting_fn[
-                    "output_branching_factor"
-                ],
+                input_branching_factor=prerouting_fn["output_branching_factor"],
                 last_im_input_shape=last_im_input_shape,
                 module_depth=module_depth + 1,
             )
@@ -871,9 +847,7 @@ class EinSpace1d:
                     "last_im_input_shape": last_im_input_shape,
                     "output_shape": second_fn["output_shape"],
                     "output_mode": second_fn["output_mode"],
-                    "output_branching_factor": second_fn[
-                        "output_branching_factor"
-                    ],
+                    "output_branching_factor": second_fn["output_branching_factor"],
                     "depth": module_depth,
                     "node_type": "nonterminal",
                 }
@@ -897,9 +871,7 @@ class EinSpace1d:
                         d["children"]["inner_fn"][0],
                         input_shape=branching_fn["output_shape"],
                         input_mode=branching_fn["output_mode"],
-                        input_branching_factor=branching_fn[
-                            "output_branching_factor"
-                        ],
+                        input_branching_factor=branching_fn["output_branching_factor"],
                         last_im_input_shape=last_im_input_shape,
                         module_depth=module_depth + 1,
                     ),
@@ -907,9 +879,7 @@ class EinSpace1d:
                         d["children"]["inner_fn"][1],
                         input_shape=branching_fn["output_shape"],
                         input_mode=branching_fn["output_mode"],
-                        input_branching_factor=branching_fn[
-                            "output_branching_factor"
-                        ],
+                        input_branching_factor=branching_fn["output_branching_factor"],
                         last_im_input_shape=last_im_input_shape,
                         module_depth=module_depth + 1,
                     ),
@@ -920,9 +890,7 @@ class EinSpace1d:
                     d["children"]["inner_fn"][0],
                     input_shape=branching_fn["output_shape"],
                     input_mode=branching_fn["output_mode"],
-                    input_branching_factor=branching_fn[
-                        "output_branching_factor"
-                    ],
+                    input_branching_factor=branching_fn["output_branching_factor"],
                     last_im_input_shape=last_im_input_shape,
                     module_depth=module_depth + 1,
                 )
@@ -990,9 +958,7 @@ class EinSpace1d:
                 d["children"]["inner_fn"],
                 input_shape=prerouting_fn["output_shape"],
                 input_mode=prerouting_fn["output_mode"],
-                input_branching_factor=prerouting_fn[
-                    "output_branching_factor"
-                ],
+                input_branching_factor=prerouting_fn["output_branching_factor"],
                 last_im_input_shape=last_im_input_shape,
                 module_depth=module_depth + 1,
             )
@@ -1107,9 +1073,7 @@ class EinSpace1d:
         self.recurse_num_nodes(d)
         return d
 
-    def recurse_last_im_input_shape(
-        self, fn, input_shape, last_im_input_shape=None
-    ):
+    def recurse_last_im_input_shape(self, fn, input_shape, last_im_input_shape=None):
         if "im2col" in fn.__name__:
             m = fn(**{"input_shape": input_shape})
             last_im_input_shape = m.fold_output_shape
@@ -1126,9 +1090,7 @@ class EinSpace1d:
         """Recursively infer the input and output shapes of each module of the network."""
         # print(fn.__name__, input_shape, other_shape, input_branching_factor)
         if 0 in input_shape:
-            raise ArchitectureCompilationError(
-                "The input shape has a dimension of 0."
-            )
+            raise ArchitectureCompilationError("The input shape has a dimension of 0.")
         # branching functions
         elif "group_dim" in fn.__name__:
             outputs = fn(**{"input_shape": input_shape}).forward(
@@ -1145,7 +1107,7 @@ class EinSpace1d:
                 *list(outputs)[0].shape[1:],
             ]
         # computation functions
-        elif fn in [norm, leakyrelu, softmax, identity]:
+        elif fn in [einl.norm, einact.leakyrelu, einact.softmax, einact.identity]:
             return [
                 input_shape[0],
                 *fn(**{"input_shape": input_shape})
@@ -1199,9 +1161,7 @@ class EinSpace1d:
         elif "cat_tensors" in fn.__name__:
             # extract the branching factor from the function name using regex
             branching_factor = int(
-                fn.__name__[
-                    fn.__name__.index("d") + 1 : fn.__name__.rindex("t")
-                ]
+                fn.__name__[fn.__name__.index("d") + 1 : fn.__name__.rindex("t")]
             )
             if branching_factor > 2:
                 return [
@@ -1268,7 +1228,7 @@ class EinSpace1d:
             or "norm" in fn.__name__
             or "leakyrelu" in fn.__name__
             or "softmax" in fn.__name__
-            or "identity" in fn.__name__
+            or "einact.identity" in fn.__name__
             or "clone_tensor" in fn.__name__
             or "linear" in fn.__name__
             or "conv" in fn.__name__
@@ -1302,38 +1262,38 @@ class EinSpace1d:
 
         # print("Stitching together", input_shape, output_shape)
         def linear_W_stitch(**kwargs):
-            return EinLinear(
+            return einl.EinLinear(
                 in_dim=input_shape[3], out_dim=output_shape[3], **kwargs
             )
 
         def linear_H_stitch(**kwargs):
-            return EinLinear(
+            return einl.EinLinear(
                 in_dim=input_shape[2], out_dim=output_shape[2], **kwargs
             )
 
         def linear_C_stitch(**kwargs):
-            return EinLinear(
+            return einl.EinLinear(
                 in_dim=input_shape[1], out_dim=output_shape[1], **kwargs
             )
 
-        # method: first we identity whether the input shape and the output shape has the same number of dimensions
+        # method: first we einact.identity whether the input shape and the output shape has the same number of dimensions
         if len(input_shape) == 4 and len(output_shape) == 4:
             # construct an architecture dictionary that converts the shape from (B, C1, H1, W1) to (B, C2, H2, W2)
             # we assume that the input shape and the output shape has the same batch size
             # first match W1 to W2
             W_stitch = OrderedDict(
                 {
-                    "fn": routing_module,
+                    "fn": einl.routing_module,
                     "children": OrderedDict(
                         {
                             "prerouting_fn": OrderedDict(
                                 {
-                                    "fn": identity,
+                                    "fn": einact.identity,
                                 }
                             ),
                             "inner_fn": OrderedDict(
                                 {
-                                    "fn": computation_module,
+                                    "fn": einl.computation_module,
                                     "children": OrderedDict(
                                         {
                                             "computation_fn": OrderedDict(
@@ -1345,7 +1305,7 @@ class EinSpace1d:
                             ),
                             "postrouting_fn": OrderedDict(
                                 {
-                                    "fn": identity,
+                                    "fn": einact.identity,
                                 }
                             ),
                         }
@@ -1355,17 +1315,17 @@ class EinSpace1d:
             # now match H1 to H2
             H_stitch = OrderedDict(
                 {
-                    "fn": routing_module,
+                    "fn": einl.routing_module,
                     "children": OrderedDict(
                         {
                             "prerouting_fn": OrderedDict(
                                 {
-                                    "fn": permute132,
+                                    "fn": einl.permute132,
                                 }
                             ),
                             "inner_fn": OrderedDict(
                                 {
-                                    "fn": computation_module,
+                                    "fn": einl.permute132,
                                     "children": OrderedDict(
                                         {
                                             "computation_fn": OrderedDict(
@@ -1377,7 +1337,7 @@ class EinSpace1d:
                             ),
                             "postrouting_fn": OrderedDict(
                                 {
-                                    "fn": permute132,
+                                    "fn": einl.permute132,
                                 }
                             ),
                         }
@@ -1387,17 +1347,17 @@ class EinSpace1d:
             # now match C1 to C2
             C_stitch = OrderedDict(
                 {
-                    "fn": routing_module,
+                    "fn": einl.routing_module,
                     "children": OrderedDict(
                         {
                             "prerouting_fn": OrderedDict(
                                 {
-                                    "fn": permute321,
+                                    "fn": einl.permute321,
                                 }
                             ),
                             "inner_fn": OrderedDict(
                                 {
-                                    "fn": computation_module,
+                                    "fn": einl.permute132,
                                     "children": OrderedDict(
                                         {
                                             "computation_fn": OrderedDict(
@@ -1409,7 +1369,7 @@ class EinSpace1d:
                             ),
                             "postrouting_fn": OrderedDict(
                                 {
-                                    "fn": permute321,
+                                    "fn": einl.permute321,
                                 }
                             ),
                         }
@@ -1418,13 +1378,13 @@ class EinSpace1d:
             )
             stitch = OrderedDict(
                 {
-                    "fn": sequential_module,
+                    "fn": einl.sequential_module,
                     "children": OrderedDict(
                         {
                             "first_fn": W_stitch,
                             "second_fn": OrderedDict(
                                 {
-                                    "fn": sequential_module,
+                                    "fn": einl.sequential_module,
                                     "children": OrderedDict(
                                         {
                                             "first_fn": H_stitch,
@@ -1443,17 +1403,17 @@ class EinSpace1d:
             # now match H1 to H2
             H_stitch = OrderedDict(
                 {
-                    "fn": routing_module,
+                    "fn": einl.routing_module,
                     "children": OrderedDict(
                         {
                             "prerouting_fn": OrderedDict(
                                 {
-                                    "fn": identity,
+                                    "fn": einact.identity,
                                 }
                             ),
                             "inner_fn": OrderedDict(
                                 {
-                                    "fn": computation_module,
+                                    "fn": einl.permute132,
                                     "children": OrderedDict(
                                         {
                                             "computation_fn": OrderedDict(
@@ -1465,7 +1425,7 @@ class EinSpace1d:
                             ),
                             "postrouting_fn": OrderedDict(
                                 {
-                                    "fn": identity,
+                                    "fn": einact.identity,
                                 }
                             ),
                         }
@@ -1475,17 +1435,17 @@ class EinSpace1d:
             # now match C1 to C2
             C_stitch = OrderedDict(
                 {
-                    "fn": routing_module,
+                    "fn": einl.routing_module,
                     "children": OrderedDict(
                         {
                             "prerouting_fn": OrderedDict(
                                 {
-                                    "fn": permute21,
+                                    "fn": einl.permute21,
                                 }
                             ),
                             "inner_fn": OrderedDict(
                                 {
-                                    "fn": computation_module,
+                                    "fn": einl.permute132,
                                     "children": OrderedDict(
                                         {
                                             "computation_fn": OrderedDict(
@@ -1497,7 +1457,7 @@ class EinSpace1d:
                             ),
                             "postrouting_fn": OrderedDict(
                                 {
-                                    "fn": permute21,
+                                    "fn": einl.permute21,
                                 }
                             ),
                         }
@@ -1506,7 +1466,7 @@ class EinSpace1d:
             )
             stitch = OrderedDict(
                 {
-                    "fn": sequential_module,
+                    "fn": einl.sequential_module,
                     "children": OrderedDict(
                         {
                             "first_fn": H_stitch,
@@ -1519,36 +1479,36 @@ class EinSpace1d:
             # construct an architecture dictionary that converts the shape from (B, C1, H1) to (B, C2, H2, W2)
             # we assume that the input shape and the output shape has the same batch size
             def linear_H_to_C_stitch(**kwargs):
-                return EinLinear(
+                return einl.EinLinear(
                     in_dim=input_shape[2], out_dim=output_shape[1], **kwargs
                 )
 
             def linear_C_to_HW_stitch(**kwargs):
-                return EinLinear(
+                return einl.EinLinear(
                     in_dim=input_shape[1],
                     out_dim=output_shape[2] * output_shape[3],
                     **kwargs,
                 )
 
-            def col2im(**kwargs):
-                fn = Col2Im(**kwargs)
+            def Col2Im(**kwargs):
+                fn = einl.Col2Im(**kwargs)
                 fn.output_shape = output_shape[2:]
                 return fn
 
             # now match H1 to C2
             H_stitch = OrderedDict(
                 {
-                    "fn": routing_module,
+                    "fn": einl.routing_module,
                     "children": OrderedDict(
                         {
                             "prerouting_fn": OrderedDict(
                                 {
-                                    "fn": identity,
+                                    "fn": einact.identity,
                                 }
                             ),
                             "inner_fn": OrderedDict(
                                 {
-                                    "fn": computation_module,
+                                    "fn": einl.permute132,
                                     "children": OrderedDict(
                                         {
                                             "computation_fn": OrderedDict(
@@ -1560,7 +1520,7 @@ class EinSpace1d:
                             ),
                             "postrouting_fn": OrderedDict(
                                 {
-                                    "fn": identity,
+                                    "fn": einact.identity,
                                 }
                             ),
                         }
@@ -1570,17 +1530,17 @@ class EinSpace1d:
             # now match C1 to H2 * W2
             C_stitch = OrderedDict(
                 {
-                    "fn": routing_module,
+                    "fn": einl.routing_module,
                     "children": OrderedDict(
                         {
                             "prerouting_fn": OrderedDict(
                                 {
-                                    "fn": permute21,
+                                    "fn": einl.permute21,
                                 }
                             ),
                             "inner_fn": OrderedDict(
                                 {
-                                    "fn": computation_module,
+                                    "fn": einl.permute132,
                                     "children": OrderedDict(
                                         {
                                             "computation_fn": OrderedDict(
@@ -1592,31 +1552,31 @@ class EinSpace1d:
                             ),
                             "postrouting_fn": OrderedDict(
                                 {
-                                    "fn": permute21,
+                                    "fn": einl.permute21,
                                 }
                             ),
                         }
                     ),
                 }
             )
-            # col2im
-            Col2Im_stitch = OrderedDict(
+            # einl.Col2Im
+            einl.Col2Im_stitch = OrderedDict(
                 {
-                    "fn": routing_module,
+                    "fn": einl.routing_module,
                     "children": OrderedDict(
                         {
                             "prerouting_fn": OrderedDict(
                                 {
-                                    "fn": identity,
+                                    "fn": einact.identity,
                                 }
                             ),
                             "inner_fn": OrderedDict(
                                 {
-                                    "fn": computation_module,
+                                    "fn": einl.permute132,
                                     "children": OrderedDict(
                                         {
                                             "computation_fn": OrderedDict(
-                                                {"fn": identity}
+                                                {"fn": einact.identity}
                                             ),
                                         }
                                     ),
@@ -1624,7 +1584,7 @@ class EinSpace1d:
                             ),
                             "postrouting_fn": OrderedDict(
                                 {
-                                    "fn": col2im,
+                                    "fn": einl.Col2Im,
                                 }
                             ),
                         }
@@ -1633,12 +1593,12 @@ class EinSpace1d:
             )
             stitch = OrderedDict(
                 {
-                    "fn": sequential_module,
+                    "fn": einl.sequential_module,
                     "children": OrderedDict(
                         {
                             "first_fn": OrderedDict(
                                 {
-                                    "fn": sequential_module,
+                                    "fn": einl.sequential_module,
                                     "children": OrderedDict(
                                         {
                                             "first_fn": H_stitch,
@@ -1647,7 +1607,7 @@ class EinSpace1d:
                                     ),
                                 },
                             ),
-                            "second_fn": Col2Im_stitch,
+                            "second_fn": einl.Col2Im_stitch,
                         }
                     ),
                 }
@@ -1656,15 +1616,15 @@ class EinSpace1d:
             # construct an architecture dictionary that converts the shape from (B, C1, H1, W1) to (B, C2, H2)
             # we assume that the input shape and the output shape has the same batch size
             def im2col(**kwargs):
-                return Im2Col(input_shape, kernel_size=1, **kwargs)
+                return einl.Im2Col(input_shape, kernel_size=1, **kwargs)
 
             def linear_HW_to_C_stitch(**kwargs):
-                return EinLinear(
+                return einl.EinLinear(
                     in_dim=input_shape[2], out_dim=output_shape[1], **kwargs
                 )
 
             def linear_C_to_H_stitch(**kwargs):
-                return EinLinear(
+                return einl.EinLinear(
                     in_dim=input_shape[1],
                     out_dim=output_shape[2] * output_shape[3],
                     **kwargs,
@@ -1673,7 +1633,7 @@ class EinSpace1d:
             # im2col
             Im2Col_stitch = OrderedDict(
                 {
-                    "fn": routing_module,
+                    "fn": einl.routing_module,
                     "children": OrderedDict(
                         {
                             "prerouting_fn": OrderedDict(
@@ -1683,11 +1643,11 @@ class EinSpace1d:
                             ),
                             "inner_fn": OrderedDict(
                                 {
-                                    "fn": computation_module,
+                                    "fn": einl.permute132,
                                     "children": OrderedDict(
                                         {
                                             "computation_fn": OrderedDict(
-                                                {"fn": identity}
+                                                {"fn": einact.identity}
                                             ),
                                         }
                                     ),
@@ -1695,7 +1655,7 @@ class EinSpace1d:
                             ),
                             "postrouting_fn": OrderedDict(
                                 {
-                                    "fn": identity,
+                                    "fn": einact.identity,
                                 }
                             ),
                         }
@@ -1705,17 +1665,17 @@ class EinSpace1d:
             # now match H1 to C2
             H_stitch = OrderedDict(
                 {
-                    "fn": routing_module,
+                    "fn": einl.routing_module,
                     "children": OrderedDict(
                         {
                             "prerouting_fn": OrderedDict(
                                 {
-                                    "fn": identity,
+                                    "fn": einact.identity,
                                 }
                             ),
                             "inner_fn": OrderedDict(
                                 {
-                                    "fn": computation_module,
+                                    "fn": einl.permute132,
                                     "children": OrderedDict(
                                         {
                                             "computation_fn": OrderedDict(
@@ -1727,7 +1687,7 @@ class EinSpace1d:
                             ),
                             "postrouting_fn": OrderedDict(
                                 {
-                                    "fn": identity,
+                                    "fn": einact.identity,
                                 }
                             ),
                         }
@@ -1737,17 +1697,17 @@ class EinSpace1d:
             # now match C1 to H2 * W2
             C_stitch = OrderedDict(
                 {
-                    "fn": routing_module,
+                    "fn": einl.routing_module,
                     "children": OrderedDict(
                         {
                             "prerouting_fn": OrderedDict(
                                 {
-                                    "fn": permute21,
+                                    "fn": einl.permute21,
                                 }
                             ),
                             "inner_fn": OrderedDict(
                                 {
-                                    "fn": computation_module,
+                                    "fn": einl.permute132,
                                     "children": OrderedDict(
                                         {
                                             "computation_fn": OrderedDict(
@@ -1759,7 +1719,7 @@ class EinSpace1d:
                             ),
                             "postrouting_fn": OrderedDict(
                                 {
-                                    "fn": permute21,
+                                    "fn": einl.permute21,
                                 }
                             ),
                         }
@@ -1768,13 +1728,13 @@ class EinSpace1d:
             )
             stitch = OrderedDict(
                 {
-                    "fn": sequential_module,
+                    "fn": einl.sequential_module,
                     "children": OrderedDict(
                         {
                             "first_fn": Im2Col_stitch,
                             "second_fn": OrderedDict(
                                 {
-                                    "fn": sequential_module,
+                                    "fn": einl.sequential_module,
                                     "children": OrderedDict(
                                         {
                                             "first_fn": H_stitch,
@@ -1805,7 +1765,7 @@ class EinSpace1d:
             )
             stitched_d = OrderedDict(
                 {
-                    "fn": sequential_module,
+                    "fn": einl.sequential_module,
                     "children": OrderedDict(
                         {
                             "first_fn": d,
@@ -1816,13 +1776,11 @@ class EinSpace1d:
             )
             repeated_d = OrderedDict(
                 {
-                    "fn": sequential_module,
+                    "fn": einl.sequential_module,
                     "children": OrderedDict(
                         {
                             "first_fn": stitched_d,
-                            "second_fn": deepcopy(
-                                self.recurse_repeat(d, depth - 1)
-                            ),
+                            "second_fn": deepcopy(self.recurse_repeat(d, depth - 1)),
                         }
                     ),
                 }
@@ -1833,7 +1791,7 @@ class EinSpace1d:
 
     def sample(self):
         """Sample a random architecture."""
-        r = randint(0, 10000)
+        # r = randint(0, 10000)
         sampling_done = False
         while not sampling_done:
             self.start_time = time.time()
@@ -1844,9 +1802,7 @@ class EinSpace1d:
                 )
 
                 # check whether the architecture contains too many parameters
-                num_predicted_params = predict_num_parameters(
-                    architecture_dict
-                )
+                num_predicted_params = predict_num_parameters(architecture_dict)
                 print(
                     f"Predicted number of parameters: {millify(num_predicted_params)}"
                 )
@@ -1857,9 +1813,7 @@ class EinSpace1d:
                 # track memory usage
                 memory_usage = psutil.virtual_memory()
                 available_memory = memory_usage.available
-                print(
-                    f"Available Memory: {millify(available_memory, bytes=True)}"
-                )
+                print(f"Available Memory: {millify(available_memory, bytes=True)}")
 
                 # if the number of predicted parameters is less than half of the available memory
                 # we can safely stop sampling
@@ -1878,7 +1832,7 @@ class EinSpace1d:
 
     def mutate(self, architecture_dict, safe_mode=True):
         """Mutate a given architecture."""
-        r = randint(0, 10000)
+        # r = randint(0, 10000)
         f = None
         # Label all nodes within the architecture dictionary with a number
         self.num_nodes = 0
@@ -1908,14 +1862,10 @@ class EinSpace1d:
                     )
                     # try to compile the new architecture
                     modules = compiler.compile(new_architecture_dict)
-                    out = modules(
-                        torch.randn(new_architecture_dict["input_shape"])
-                    )
+                    _ = modules(torch.randn(new_architecture_dict["input_shape"]))
 
                     # check whether the architecture contains too many parameters
-                    num_predicted_params = predict_num_parameters(
-                        new_architecture_dict
-                    )
+                    num_predicted_params = predict_num_parameters(new_architecture_dict)
                     print(
                         f"Predicted number of parameters: {millify(num_predicted_params)}"
                     )
@@ -1926,9 +1876,7 @@ class EinSpace1d:
                     # track memory usage
                     memory_usage = psutil.virtual_memory()
                     available_memory = memory_usage.available
-                    print(
-                        f"Available Memory: {millify(available_memory, bytes=True)}"
-                    )
+                    print(f"Available Memory: {millify(available_memory, bytes=True)}")
 
                     # if the number of predicted parameters is less than half of the available memory
                     # we can safely stop sampling
@@ -1956,7 +1904,7 @@ class EinSpace1d:
     def recurse_num_nodes(self, d):
         """Label all nodes within the architecture dictionary with a number."""
         d["node_id"] = self.num_nodes
-        if "sequential_module" in d["fn"].__name__:
+        if "einl.sequential_module" in d["fn"].__name__:
             self.num_nodes += 1
             self.recurse_num_nodes(d["children"]["first_fn"])
             self.num_nodes += 1
@@ -1969,14 +1917,14 @@ class EinSpace1d:
                 self.recurse_num_nodes(d["children"]["inner_fn"][i])
             self.num_nodes += 1
             self.recurse_num_nodes(d["children"]["aggregation_fn"])
-        elif "routing_module" in d["fn"].__name__:
+        elif "einl.routing_module" in d["fn"].__name__:
             self.num_nodes += 1
             self.recurse_num_nodes(d["children"]["prerouting_fn"])
             self.num_nodes += 1
             self.recurse_num_nodes(d["children"]["inner_fn"])
             self.num_nodes += 1
             self.recurse_num_nodes(d["children"]["postrouting_fn"])
-        elif "computation_module" in d["fn"].__name__:
+        elif "einl.permute132" in d["fn"].__name__:
             self.num_nodes += 1
             self.recurse_num_nodes(d["children"]["computation_fn"])
         else:
@@ -1989,13 +1937,10 @@ class EinSpace1d:
         # pprint(architecture_dict)
         if architecture_dict["node_id"] == node_id:
             return architecture_dict, level
-        elif "sequential_module" in architecture_dict["fn"].__name__:
+        elif "einl.sequential_module" in architecture_dict["fn"].__name__:
             if architecture_dict["children"]["first_fn"]["node_id"] == node_id:
                 return architecture_dict["children"]["first_fn"], "first_fn"
-            elif (
-                architecture_dict["children"]["second_fn"]["node_id"]
-                == node_id
-            ):
+            elif architecture_dict["children"]["second_fn"]["node_id"] == node_id:
                 return architecture_dict["children"]["second_fn"], "second_fn"
             else:
                 first_fn = self.find_node(
@@ -2013,18 +1958,12 @@ class EinSpace1d:
                 if second_fn is not None:
                     return second_fn
         elif "branching_module" in architecture_dict["fn"].__name__:
-            if (
-                architecture_dict["children"]["branching_fn"]["node_id"]
-                == node_id
-            ):
+            if architecture_dict["children"]["branching_fn"]["node_id"] == node_id:
                 return (
                     architecture_dict["children"]["branching_fn"],
                     "branching_fn",
                 )
-            elif (
-                architecture_dict["children"]["aggregation_fn"]["node_id"]
-                == node_id
-            ):
+            elif architecture_dict["children"]["aggregation_fn"]["node_id"] == node_id:
                 return (
                     architecture_dict["children"]["aggregation_fn"],
                     "aggregation_fn",
@@ -2046,9 +1985,7 @@ class EinSpace1d:
                         architecture_dict["children"]["inner_fn"][i],
                         node_id,
                     )
-                    for i in range(
-                        len(architecture_dict["children"]["inner_fn"])
-                    )
+                    for i in range(len(architecture_dict["children"]["inner_fn"]))
                 ]:
                     if inner_fn is not None:
                         return inner_fn
@@ -2059,23 +1996,15 @@ class EinSpace1d:
                 )
                 if aggregation_fn is not None:
                     return aggregation_fn
-        elif "routing_module" in architecture_dict["fn"].__name__:
-            if (
-                architecture_dict["children"]["prerouting_fn"]["node_id"]
-                == node_id
-            ):
+        elif "einl.routing_module" in architecture_dict["fn"].__name__:
+            if architecture_dict["children"]["prerouting_fn"]["node_id"] == node_id:
                 return (
                     architecture_dict["children"]["prerouting_fn"],
                     "prerouting_fn",
                 )
-            elif (
-                architecture_dict["children"]["inner_fn"]["node_id"] == node_id
-            ):
+            elif architecture_dict["children"]["inner_fn"]["node_id"] == node_id:
                 return architecture_dict["children"]["inner_fn"], "inner_fn"
-            elif (
-                architecture_dict["children"]["postrouting_fn"]["node_id"]
-                == node_id
-            ):
+            elif architecture_dict["children"]["postrouting_fn"]["node_id"] == node_id:
                 return (
                     architecture_dict["children"]["postrouting_fn"],
                     "postrouting_fn",
@@ -2102,11 +2031,8 @@ class EinSpace1d:
                 )
                 if postrouting_fn is not None:
                     return postrouting_fn
-        elif "computation_module" in architecture_dict["fn"].__name__:
-            if (
-                architecture_dict["children"]["computation_fn"]["node_id"]
-                == node_id
-            ):
+        elif "einl.permute132" in architecture_dict["fn"].__name__:
+            if architecture_dict["children"]["computation_fn"]["node_id"] == node_id:
                 return (
                     architecture_dict["children"]["computation_fn"],
                     "computation_fn",
@@ -2116,14 +2042,11 @@ class EinSpace1d:
         """Replace a node within the architecture dictionary."""
         if architecture_dict["node_id"] == node_id:
             return new_node
-        elif "sequential_module" in architecture_dict["fn"].__name__:
+        elif "einl.sequential_module" in architecture_dict["fn"].__name__:
             if architecture_dict["children"]["first_fn"]["node_id"] == node_id:
                 architecture_dict["children"]["first_fn"] = new_node
                 return architecture_dict
-            elif (
-                architecture_dict["children"]["second_fn"]["node_id"]
-                == node_id
-            ):
+            elif architecture_dict["children"]["second_fn"]["node_id"] == node_id:
                 architecture_dict["children"]["second_fn"] = new_node
                 return architecture_dict
             else:
@@ -2139,16 +2062,10 @@ class EinSpace1d:
                 )
                 return architecture_dict
         elif "branching_module" in architecture_dict["fn"].__name__:
-            if (
-                architecture_dict["children"]["branching_fn"]["node_id"]
-                == node_id
-            ):
+            if architecture_dict["children"]["branching_fn"]["node_id"] == node_id:
                 architecture_dict["children"]["branching_fn"] = new_node
                 return architecture_dict
-            elif (
-                architecture_dict["children"]["aggregation_fn"]["node_id"]
-                == node_id
-            ):
+            elif architecture_dict["children"]["aggregation_fn"]["node_id"] == node_id:
                 architecture_dict["children"]["aggregation_fn"] = new_node
                 return architecture_dict
             else:
@@ -2159,32 +2076,22 @@ class EinSpace1d:
                     ):
                         # if the branching factor is 2, we allow different inner functions
                         if len(architecture_dict["children"]["inner_fn"]) == 2:
-                            architecture_dict["children"]["inner_fn"][
-                                i
-                            ] = new_node
+                            architecture_dict["children"]["inner_fn"][i] = new_node
                         # but if the branching factor is more than 2, we replace all inner functions with the same new node
-                        elif (
-                            len(architecture_dict["children"]["inner_fn"]) > 2
-                        ):
+                        elif len(architecture_dict["children"]["inner_fn"]) > 2:
                             for i in range(
                                 len(architecture_dict["children"]["inner_fn"])
                             ):
-                                architecture_dict["children"]["inner_fn"][
-                                    i
-                                ] = new_node
+                                architecture_dict["children"]["inner_fn"][i] = new_node
                         return architecture_dict
-                architecture_dict["children"]["branching_fn"] = (
-                    self.replace_node(
-                        architecture_dict["children"]["branching_fn"],
-                        node_id,
-                        new_node,
-                    )
+                architecture_dict["children"]["branching_fn"] = self.replace_node(
+                    architecture_dict["children"]["branching_fn"],
+                    node_id,
+                    new_node,
                 )
                 # if the branching factor is 2, we allow different inner functions
                 if len(architecture_dict["children"]["inner_fn"]) == 2:
-                    for i in range(
-                        len(architecture_dict["children"]["inner_fn"])
-                    ):
+                    for i in range(len(architecture_dict["children"]["inner_fn"])):
                         architecture_dict["children"]["inner_fn"][i] = (
                             self.replace_node(
                                 architecture_dict["children"]["inner_fn"][i],
@@ -2199,62 +2106,43 @@ class EinSpace1d:
                         node_id,
                         new_node,
                     )
-                    for i in range(
-                        len(architecture_dict["children"]["inner_fn"])
-                    ):
+                    for i in range(len(architecture_dict["children"]["inner_fn"])):
                         architecture_dict["children"]["inner_fn"][i] = inner_fn
-                architecture_dict["children"]["aggregation_fn"] = (
-                    self.replace_node(
-                        architecture_dict["children"]["aggregation_fn"],
-                        node_id,
-                        new_node,
-                    )
+                architecture_dict["children"]["aggregation_fn"] = self.replace_node(
+                    architecture_dict["children"]["aggregation_fn"],
+                    node_id,
+                    new_node,
                 )
                 return architecture_dict
-        elif "routing_module" in architecture_dict["fn"].__name__:
-            if (
-                architecture_dict["children"]["prerouting_fn"]["node_id"]
-                == node_id
-            ):
+        elif "einl.routing_module" in architecture_dict["fn"].__name__:
+            if architecture_dict["children"]["prerouting_fn"]["node_id"] == node_id:
                 architecture_dict["children"]["prerouting_fn"] = new_node
                 return architecture_dict
-            elif (
-                architecture_dict["children"]["inner_fn"]["node_id"] == node_id
-            ):
+            elif architecture_dict["children"]["inner_fn"]["node_id"] == node_id:
                 architecture_dict["children"]["inner_fn"] = new_node
                 return architecture_dict
-            elif (
-                architecture_dict["children"]["postrouting_fn"]["node_id"]
-                == node_id
-            ):
+            elif architecture_dict["children"]["postrouting_fn"]["node_id"] == node_id:
                 architecture_dict["children"]["postrouting_fn"] = new_node
                 return architecture_dict
             else:
-                architecture_dict["children"]["prerouting_fn"] = (
-                    self.replace_node(
-                        architecture_dict["children"]["prerouting_fn"],
-                        node_id,
-                        new_node,
-                    )
+                architecture_dict["children"]["prerouting_fn"] = self.replace_node(
+                    architecture_dict["children"]["prerouting_fn"],
+                    node_id,
+                    new_node,
                 )
                 architecture_dict["children"]["inner_fn"] = self.replace_node(
                     architecture_dict["children"]["inner_fn"],
                     node_id,
                     new_node,
                 )
-                architecture_dict["children"]["postrouting_fn"] = (
-                    self.replace_node(
-                        architecture_dict["children"]["postrouting_fn"],
-                        node_id,
-                        new_node,
-                    )
+                architecture_dict["children"]["postrouting_fn"] = self.replace_node(
+                    architecture_dict["children"]["postrouting_fn"],
+                    node_id,
+                    new_node,
                 )
                 return architecture_dict
-        elif "computation_module" in architecture_dict["fn"].__name__:
-            if (
-                architecture_dict["children"]["computation_fn"]["node_id"]
-                == node_id
-            ):
+        elif "einl.permute132" in architecture_dict["fn"].__name__:
+            if architecture_dict["children"]["computation_fn"]["node_id"] == node_id:
                 architecture_dict["children"]["computation_fn"] = new_node
                 return architecture_dict
         return architecture_dict
@@ -2275,7 +2163,5 @@ class EinSpace1d:
             node_to_remove=node,
         )
         # we then replace the old architecture with the new one at that node
-        architecture_dict = self.replace_node(
-            architecture_dict, node_id, new_node
-        )
+        architecture_dict = self.replace_node(architecture_dict, node_id, new_node)
         return architecture_dict

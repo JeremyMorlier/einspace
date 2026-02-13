@@ -12,7 +12,7 @@ from positional_encodings.torch_encodings import (
 )
 from torch.fft import fftn, ifftn
 
-from einspace.utils import ArchitectureCompilationError, clone_module, pair
+from einspace.utils import ArchitectureCompilationError, pair
 
 
 class Lambda(nn.Module):
@@ -107,9 +107,7 @@ class RoutingModule(nn.Module):
         self.inner_fn = inner_fn
         self.postrouting_fn = postrouting_fn
         if hasattr(self.prerouting_fn, "fold_output_shape"):
-            self.postrouting_fn.output_shape = (
-                self.prerouting_fn.fold_output_shape
-            )
+            self.postrouting_fn.output_shape = self.prerouting_fn.fold_output_shape
 
     def forward(self, x):
         # make sure postrouting functions can undo any prerouting changes
@@ -280,7 +278,12 @@ class Im2Col1d(nn.Module):
     ):
         super(Im2Col1d, self).__init__()
         batch, channels, dim = input_shape
-        self.kernel_size, self.stride, self.padding, self.dilation = kernel_size, stride, padding, dilation
+        self.kernel_size, self.stride, self.padding, self.dilation = (
+            kernel_size,
+            stride,
+            padding,
+            dilation,
+        )
         # equivalent using permute and reshape operations
         self.prearrange = lambda x: x
         # equivalent using permute and reshape operations
@@ -351,7 +354,9 @@ class Col2Im(nn.Module):
         #     w=self.output_shape[1],
         # )(x)
         # equivalent using permute and reshape
-        self.rearrange = lambda x: x.permute(0, 2, 1).reshape(x.shape[0], -1, self.output_shape[0], self.output_shape[1])
+        self.rearrange = lambda x: x.permute(0, 2, 1).reshape(
+            x.shape[0], -1, self.output_shape[0], self.output_shape[1]
+        )
 
     def forward(self, x):
         # print("col2im input_shape", x.shape)
@@ -369,7 +374,7 @@ class Col2Im(nn.Module):
         if hasattr(self, "output_shape"):
             return f"Col2Im(output_shape={self.output_shape})"
         else:
-            return f"Col2Im()"
+            return "Col2Im()"
 
 
 class Col2Im2(nn.Module):
@@ -564,9 +569,7 @@ class IFFTLayer(nn.Module):
         super(IFFTLayer, self).__init__()
 
     def forward(self, x):
-        fft = torch.complex(
-            x[..., : x.size(-1) // 2], x[..., x.size(-1) // 2 :]
-        )
+        fft = torch.complex(x[..., : x.size(-1) // 2], x[..., x.size(-1) // 2 :])
         if x.dim() == 4:
             out = ifftn(fft, dim=[2, 3])
         if x.dim() == 3:
@@ -598,18 +601,12 @@ class PositionalEncoding(nn.Module):
     def __init__(self, input_shape):
         super().__init__()
         if len(input_shape) == 2:
-            self.fn = Summer(
-                PositionalEncodingPermute1D(channels=input_shape[1])
-            )
+            self.fn = Summer(PositionalEncodingPermute1D(channels=input_shape[1]))
             print("TESTING 1D POS-ENC!")
         elif len(input_shape) == 3:
-            self.fn = Summer(
-                PositionalEncodingPermute1D(channels=input_shape[1])
-            )
+            self.fn = Summer(PositionalEncodingPermute1D(channels=input_shape[1]))
         elif len(input_shape) == 4:
-            self.fn = Summer(
-                PositionalEncodingPermute2D(channels=input_shape[1])
-            )
+            self.fn = Summer(PositionalEncodingPermute2D(channels=input_shape[1]))
 
     def forward(self, x):
         """
@@ -626,9 +623,7 @@ class LearnablePositionalEncoding(nn.Module):
         super(LearnablePositionalEncoding, self).__init__()
         self.input_shape = input_shape
         if len(input_shape) == 3:
-            self.fn = nn.Parameter(
-                torch.randn(1, input_shape[1], input_shape[2])
-            )
+            self.fn = nn.Parameter(torch.randn(1, input_shape[1], input_shape[2]))
         elif len(input_shape) == 4:
             self.fn = nn.Parameter(
                 torch.randn(1, input_shape[1], input_shape[2], input_shape[3])
@@ -672,57 +667,39 @@ def clone_tensor8(**kwargs):
 
 
 def group_dim2s1d(**kwargs):
-    return GroupDim(
-        splits=2, dim=1, dim_total=kwargs["input_shape"][1], **kwargs
-    )
+    return GroupDim(splits=2, dim=1, dim_total=kwargs["input_shape"][1], **kwargs)
 
 
 def group_dim2s2d(**kwargs):
-    return GroupDim(
-        splits=2, dim=2, dim_total=kwargs["input_shape"][2], **kwargs
-    )
+    return GroupDim(splits=2, dim=2, dim_total=kwargs["input_shape"][2], **kwargs)
 
 
 def group_dim2s3d(**kwargs):
-    return GroupDim(
-        splits=2, dim=3, dim_total=kwargs["input_shape"][3], **kwargs
-    )
+    return GroupDim(splits=2, dim=3, dim_total=kwargs["input_shape"][3], **kwargs)
 
 
 def group_dim4s1d(**kwargs):
-    return GroupDim(
-        splits=4, dim=1, dim_total=kwargs["input_shape"][1], **kwargs
-    )
+    return GroupDim(splits=4, dim=1, dim_total=kwargs["input_shape"][1], **kwargs)
 
 
 def group_dim4s2d(**kwargs):
-    return GroupDim(
-        splits=4, dim=2, dim_total=kwargs["input_shape"][2], **kwargs
-    )
+    return GroupDim(splits=4, dim=2, dim_total=kwargs["input_shape"][2], **kwargs)
 
 
 def group_dim4s3d(**kwargs):
-    return GroupDim(
-        splits=4, dim=3, dim_total=kwargs["input_shape"][3], **kwargs
-    )
+    return GroupDim(splits=4, dim=3, dim_total=kwargs["input_shape"][3], **kwargs)
 
 
 def group_dim8s1d(**kwargs):
-    return GroupDim(
-        splits=8, dim=1, dim_total=kwargs["input_shape"][1], **kwargs
-    )
+    return GroupDim(splits=8, dim=1, dim_total=kwargs["input_shape"][1], **kwargs)
 
 
 def group_dim8s2d(**kwargs):
-    return GroupDim(
-        splits=8, dim=2, dim_total=kwargs["input_shape"][2], **kwargs
-    )
+    return GroupDim(splits=8, dim=2, dim_total=kwargs["input_shape"][2], **kwargs)
 
 
 def group_dim8s3d(**kwargs):
-    return GroupDim(
-        splits=8, dim=3, dim_total=kwargs["input_shape"][3], **kwargs
-    )
+    return GroupDim(splits=8, dim=3, dim_total=kwargs["input_shape"][3], **kwargs)
 
 
 def im2col1k1s0p(**kwargs):
@@ -1050,7 +1027,7 @@ def conv1d8k1s3p32d(**kwargs):
             kernel_size=8,
             stride=1,
             padding=3,
-        )
+        ),
     )
 
 
@@ -1063,7 +1040,7 @@ def conv1d8k1s3p64d(**kwargs):
             kernel_size=8,
             stride=1,
             padding=3,
-        )
+        ),
     )
 
 
@@ -1076,7 +1053,7 @@ def conv1d8k1s3p128d(**kwargs):
             kernel_size=8,
             stride=1,
             padding=3,
-        )
+        ),
     )
 
 
@@ -1089,7 +1066,7 @@ def conv1d8k1s3p256d(**kwargs):
             kernel_size=8,
             stride=1,
             padding=3,
-        )
+        ),
     )
 
 
@@ -1177,9 +1154,7 @@ if __name__ == "__main__":
     input_shape = (1, 16, 64)
     x = torch.randn(input_shape)
     col2im = col2im1k1s0p()
-    col2im.output_shape = int(sqrt(input_shape[-2])), int(
-        sqrt(input_shape[-2])
-    )
+    col2im.output_shape = int(sqrt(input_shape[-2])), int(sqrt(input_shape[-2]))
     out = col2im(x)
     print(out.shape)
     im2col = im2col1k1s0p(**{"input_shape": out.shape})

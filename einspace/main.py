@@ -3,7 +3,6 @@ from pprint import pprint
 
 import torch
 import yaml
-from itertools import repeat
 
 from foresight.pruners.predictive import find_measures
 
@@ -104,15 +103,18 @@ if __name__ == "__main__":
             config["search_strategy_architecture_seed"] is not None
             and "warmup" in config["search_strategy_architecture_seed"]
         ):
+
             def zero_cost_evaluation_fn(architecture, modules):
-                # zero-cost evaluate the architecture
+                # zero-cost evaluate the architecture
                 model = Network(
                     modules,
                     architecture["output_shape"],
                     config["num_classes"],
                     config,
                 )
-                zero_cost_proxy = config["search_strategy_architecture_seed"].split("_")[-1]
+                zero_cost_proxy = config["search_strategy_architecture_seed"].split(
+                    "_"
+                )[-1]
                 measure = find_measures(
                     model,
                     train_loader,
@@ -121,6 +123,7 @@ if __name__ == "__main__":
                     measure_names=[zero_cost_proxy],
                 )
                 return {"val_score": measure}
+
             random_search = RandomSearch(
                 search_space=einspace,
                 compiler=compiler,
@@ -130,16 +133,19 @@ if __name__ == "__main__":
                 continue_search=config["search_strategy_continue_search"],
             )
             warmup_history = random_search.search()
-            architecture_seed = warmup_history[:config["search_strategy_init_pop_size"]]
+            architecture_seed = warmup_history[
+                : config["search_strategy_init_pop_size"]
+            ]
         elif (
-            config["search_strategy_architecture_seed"] is not None and
-            "+" in config["search_strategy_architecture_seed"]
+            config["search_strategy_architecture_seed"] is not None
+            and "+" in config["search_strategy_architecture_seed"]
         ):
             seed_mix = config["search_strategy_architecture_seed"].split("+")
             k = config["search_strategy_init_pop_size"] // len(seed_mix)
             architecture_seed = [
                 # seed_architectures[arch] for arch in repeat(seed_mix, k)
-                seed_architectures[arch] for arch in seed_mix
+                seed_architectures[arch]
+                for arch in seed_mix
             ]
         elif config["search_strategy_architecture_seed"] is not None:
             architecture_seed = [

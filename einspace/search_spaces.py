@@ -292,9 +292,7 @@ class EinSpace:
             # if the sampling has taken too long, we raise an error
             k = 5
             if sampling_time > 60 * k:
-                raise TimeoutError(
-                    f"Sampling took more than {k} minutes. Restarting."
-                )
+                raise TimeoutError(f"Sampling took more than {k} minutes. Restarting.")
             # if we run out of options to try at this level
             # we raise an error that will propagate back to the previous level
             if len(options) == 0:
@@ -314,8 +312,7 @@ class EinSpace:
                         (
                             self.computation_module_prob
                             if fn.__name__ == "computation_module"
-                            else (1 - self.computation_module_prob)
-                            / (len(options) - 1)
+                            else (1 - self.computation_module_prob) / (len(options) - 1)
                         )
                         for fn in options
                     ]
@@ -383,10 +380,7 @@ class EinSpace:
                 options = [fn for fn in options if fn.__name__ != "permute21"]
                 # and remove all im2col functions that are too big for the input size
                 for kernel_size in [16, 8, 4, 3]:
-                    if (
-                        input_shape[2] < kernel_size
-                        or input_shape[3] < kernel_size
-                    ):
+                    if input_shape[2] < kernel_size or input_shape[3] < kernel_size:
                         options = [
                             fn
                             for fn in options
@@ -477,8 +471,7 @@ class EinSpace:
                         options = [
                             fn
                             for fn in options
-                            if fn.__name__
-                            not in ["dot_product", "scaled_dot_product"]
+                            if fn.__name__ not in ["dot_product", "scaled_dot_product"]
                         ]
                     # if the input mode is "col", we remove the functions that operate on 4D tensors
                     options = [
@@ -500,8 +493,7 @@ class EinSpace:
                         options = [
                             fn
                             for fn in options
-                            if fn.__name__
-                            not in ["dot_product", "scaled_dot_product"]
+                            if fn.__name__ not in ["dot_product", "scaled_dot_product"]
                         ]
                 else:
                     raise ArchitectureCompilationError(
@@ -546,14 +538,10 @@ class EinSpace:
                     torch.tensor(input_shape[1:]),
                     torch.tensor(other_shape[1:]),
                 ):
-                    options = [
-                        fn for fn in options if fn.__name__ != "add_tensors"
-                    ]
+                    options = [fn for fn in options if fn.__name__ != "add_tensors"]
             else:
                 raise ArchitectureCompilationError(
-                    "other_shape is None, but it should not be. Level: "
-                    + level
-                    + "."
+                    "other_shape is None, but it should not be. Level: " + level + "."
                 )
         # print("filtered options", [fn.__name__ for fn in options])
         # f.write(f"\t post-filtering options: {[fn.__name__ for fn in options]}\n")
@@ -617,9 +605,7 @@ class EinSpace:
                     "last_im_input_shape": last_im_input_shape,
                     "output_shape": second_fn["output_shape"],
                     "output_mode": second_fn["output_mode"],
-                    "output_branching_factor": second_fn[
-                        "output_branching_factor"
-                    ],
+                    "output_branching_factor": second_fn["output_branching_factor"],
                     "depth": module_depth,
                     "node_type": "nonterminal",
                 }
@@ -645,9 +631,7 @@ class EinSpace:
                         "inner_fn",
                         input_shape=branching_fn["output_shape"],
                         input_mode=branching_fn["output_mode"],
-                        input_branching_factor=branching_fn[
-                            "output_branching_factor"
-                        ],
+                        input_branching_factor=branching_fn["output_branching_factor"],
                         last_im_input_shape=last_im_input_shape,
                         module_depth=module_depth + 1,
                     ),
@@ -656,9 +640,7 @@ class EinSpace:
                         "inner_fn",
                         input_shape=branching_fn["output_shape"],
                         input_mode=branching_fn["output_mode"],
-                        input_branching_factor=branching_fn[
-                            "output_branching_factor"
-                        ],
+                        input_branching_factor=branching_fn["output_branching_factor"],
                         last_im_input_shape=last_im_input_shape,
                         module_depth=module_depth + 1,
                     ),
@@ -670,9 +652,7 @@ class EinSpace:
                     "inner_fn",
                     input_shape=branching_fn["output_shape"],
                     input_mode=branching_fn["output_mode"],
-                    input_branching_factor=branching_fn[
-                        "output_branching_factor"
-                    ],
+                    input_branching_factor=branching_fn["output_branching_factor"],
                     last_im_input_shape=last_im_input_shape,
                     module_depth=module_depth + 1,
                 )
@@ -743,9 +723,7 @@ class EinSpace:
                 "inner_fn",
                 input_shape=prerouting_fn["output_shape"],
                 input_mode=prerouting_fn["output_mode"],
-                input_branching_factor=prerouting_fn[
-                    "output_branching_factor"
-                ],
+                input_branching_factor=prerouting_fn["output_branching_factor"],
                 last_im_input_shape=last_im_input_shape,
                 module_depth=module_depth + 1,
             )
@@ -919,9 +897,7 @@ class EinSpace:
                     "last_im_input_shape": last_im_input_shape,
                     "output_shape": second_fn["output_shape"],
                     "output_mode": second_fn["output_mode"],
-                    "output_branching_factor": second_fn[
-                        "output_branching_factor"
-                    ],
+                    "output_branching_factor": second_fn["output_branching_factor"],
                     "depth": module_depth,
                     "node_type": "nonterminal",
                 }
@@ -945,9 +921,7 @@ class EinSpace:
                         d["children"]["inner_fn"][0],
                         input_shape=branching_fn["output_shape"],
                         input_mode=branching_fn["output_mode"],
-                        input_branching_factor=branching_fn[
-                            "output_branching_factor"
-                        ],
+                        input_branching_factor=branching_fn["output_branching_factor"],
                         last_im_input_shape=last_im_input_shape,
                         module_depth=module_depth + 1,
                     ),
@@ -955,9 +929,7 @@ class EinSpace:
                         d["children"]["inner_fn"][1],
                         input_shape=branching_fn["output_shape"],
                         input_mode=branching_fn["output_mode"],
-                        input_branching_factor=branching_fn[
-                            "output_branching_factor"
-                        ],
+                        input_branching_factor=branching_fn["output_branching_factor"],
                         last_im_input_shape=last_im_input_shape,
                         module_depth=module_depth + 1,
                     ),
@@ -968,9 +940,7 @@ class EinSpace:
                     d["children"]["inner_fn"][0],
                     input_shape=branching_fn["output_shape"],
                     input_mode=branching_fn["output_mode"],
-                    input_branching_factor=branching_fn[
-                        "output_branching_factor"
-                    ],
+                    input_branching_factor=branching_fn["output_branching_factor"],
                     last_im_input_shape=last_im_input_shape,
                     module_depth=module_depth + 1,
                 )
@@ -1038,9 +1008,7 @@ class EinSpace:
                 d["children"]["inner_fn"],
                 input_shape=prerouting_fn["output_shape"],
                 input_mode=prerouting_fn["output_mode"],
-                input_branching_factor=prerouting_fn[
-                    "output_branching_factor"
-                ],
+                input_branching_factor=prerouting_fn["output_branching_factor"],
                 last_im_input_shape=last_im_input_shape,
                 module_depth=module_depth + 1,
             )
@@ -1155,9 +1123,7 @@ class EinSpace:
         self.recurse_num_nodes(d)
         return d
 
-    def recurse_last_im_input_shape(
-        self, fn, input_shape, last_im_input_shape=None
-    ):
+    def recurse_last_im_input_shape(self, fn, input_shape, last_im_input_shape=None):
         if "im2col" in fn.__name__:
             m = fn(**{"input_shape": input_shape})
             last_im_input_shape = m.fold_output_shape
@@ -1174,9 +1140,7 @@ class EinSpace:
         """Recursively infer the input and output shapes of each module of the network."""
         # print(fn.__name__, input_shape, other_shape, input_branching_factor)
         if 0 in input_shape:
-            raise ArchitectureCompilationError(
-                "The input shape has a dimension of 0."
-            )
+            raise ArchitectureCompilationError("The input shape has a dimension of 0.")
         # branching functions
         elif "group_dim" in fn.__name__:
             outputs = fn(**{"input_shape": input_shape}).forward(
@@ -1246,9 +1210,7 @@ class EinSpace:
         elif "cat_tensors" in fn.__name__:
             # extract the branching factor from the function name using regex
             branching_factor = int(
-                fn.__name__[
-                    fn.__name__.index("d") + 1 : fn.__name__.rindex("t")
-                ]
+                fn.__name__[fn.__name__.index("d") + 1 : fn.__name__.rindex("t")]
             )
             if branching_factor > 2:
                 return [
@@ -1348,19 +1310,13 @@ class EinSpace:
 
         # print("Stitching together", input_shape, output_shape)
         def linear_W_stitch(**kwargs):
-            return EinLinear(
-                in_dim=input_shape[3], out_dim=output_shape[3], **kwargs
-            )
+            return EinLinear(in_dim=input_shape[3], out_dim=output_shape[3], **kwargs)
 
         def linear_H_stitch(**kwargs):
-            return EinLinear(
-                in_dim=input_shape[2], out_dim=output_shape[2], **kwargs
-            )
+            return EinLinear(in_dim=input_shape[2], out_dim=output_shape[2], **kwargs)
 
         def linear_C_stitch(**kwargs):
-            return EinLinear(
-                in_dim=input_shape[1], out_dim=output_shape[1], **kwargs
-            )
+            return EinLinear(in_dim=input_shape[1], out_dim=output_shape[1], **kwargs)
 
         # method: first we identity whether the input shape and the output shape has the same number of dimensions
         if len(input_shape) == 4 and len(output_shape) == 4:
@@ -1866,9 +1822,7 @@ class EinSpace:
                     "children": OrderedDict(
                         {
                             "first_fn": stitched_d,
-                            "second_fn": deepcopy(
-                                self.recurse_repeat(d, depth - 1)
-                            ),
+                            "second_fn": deepcopy(self.recurse_repeat(d, depth - 1)),
                         }
                     ),
                 }
@@ -1890,9 +1844,7 @@ class EinSpace:
                 )
 
                 # check whether the architecture contains too many parameters
-                num_predicted_params = predict_num_parameters(
-                    architecture_dict
-                )
+                num_predicted_params = predict_num_parameters(architecture_dict)
                 print(
                     f"Predicted number of parameters: {millify(num_predicted_params)}"
                 )
@@ -1903,9 +1855,7 @@ class EinSpace:
                 # track memory usage
                 memory_usage = psutil.virtual_memory()
                 available_memory = memory_usage.available
-                print(
-                    f"Available Memory: {millify(available_memory, bytes=True)}"
-                )
+                print(f"Available Memory: {millify(available_memory, bytes=True)}")
 
                 # if the number of predicted parameters is less than half of the available memory
                 # we can safely stop sampling
@@ -1954,14 +1904,10 @@ class EinSpace:
                     )
                     # try to compile the new architecture
                     modules = compiler.compile(new_architecture_dict)
-                    out = modules(
-                        torch.randn(new_architecture_dict["input_shape"])
-                    )
+                    out = modules(torch.randn(new_architecture_dict["input_shape"]))
 
                     # check whether the architecture contains too many parameters
-                    num_predicted_params = predict_num_parameters(
-                        new_architecture_dict
-                    )
+                    num_predicted_params = predict_num_parameters(new_architecture_dict)
                     print(
                         f"Predicted number of parameters: {millify(num_predicted_params)}"
                     )
@@ -1972,9 +1918,7 @@ class EinSpace:
                     # track memory usage
                     memory_usage = psutil.virtual_memory()
                     available_memory = memory_usage.available
-                    print(
-                        f"Available Memory: {millify(available_memory, bytes=True)}"
-                    )
+                    print(f"Available Memory: {millify(available_memory, bytes=True)}")
 
                     # if the number of predicted parameters is less than half of the available memory
                     # we can safely stop sampling
@@ -2038,10 +1982,7 @@ class EinSpace:
         elif "sequential_module" in architecture_dict["fn"].__name__:
             if architecture_dict["children"]["first_fn"]["node_id"] == node_id:
                 return architecture_dict["children"]["first_fn"], "first_fn"
-            elif (
-                architecture_dict["children"]["second_fn"]["node_id"]
-                == node_id
-            ):
+            elif architecture_dict["children"]["second_fn"]["node_id"] == node_id:
                 return architecture_dict["children"]["second_fn"], "second_fn"
             else:
                 first_fn = self.find_node(
@@ -2059,18 +2000,12 @@ class EinSpace:
                 if second_fn is not None:
                     return second_fn
         elif "branching_module" in architecture_dict["fn"].__name__:
-            if (
-                architecture_dict["children"]["branching_fn"]["node_id"]
-                == node_id
-            ):
+            if architecture_dict["children"]["branching_fn"]["node_id"] == node_id:
                 return (
                     architecture_dict["children"]["branching_fn"],
                     "branching_fn",
                 )
-            elif (
-                architecture_dict["children"]["aggregation_fn"]["node_id"]
-                == node_id
-            ):
+            elif architecture_dict["children"]["aggregation_fn"]["node_id"] == node_id:
                 return (
                     architecture_dict["children"]["aggregation_fn"],
                     "aggregation_fn",
@@ -2092,9 +2027,7 @@ class EinSpace:
                         architecture_dict["children"]["inner_fn"][i],
                         node_id,
                     )
-                    for i in range(
-                        len(architecture_dict["children"]["inner_fn"])
-                    )
+                    for i in range(len(architecture_dict["children"]["inner_fn"]))
                 ]:
                     if inner_fn is not None:
                         return inner_fn
@@ -2106,22 +2039,14 @@ class EinSpace:
                 if aggregation_fn is not None:
                     return aggregation_fn
         elif "routing_module" in architecture_dict["fn"].__name__:
-            if (
-                architecture_dict["children"]["prerouting_fn"]["node_id"]
-                == node_id
-            ):
+            if architecture_dict["children"]["prerouting_fn"]["node_id"] == node_id:
                 return (
                     architecture_dict["children"]["prerouting_fn"],
                     "prerouting_fn",
                 )
-            elif (
-                architecture_dict["children"]["inner_fn"]["node_id"] == node_id
-            ):
+            elif architecture_dict["children"]["inner_fn"]["node_id"] == node_id:
                 return architecture_dict["children"]["inner_fn"], "inner_fn"
-            elif (
-                architecture_dict["children"]["postrouting_fn"]["node_id"]
-                == node_id
-            ):
+            elif architecture_dict["children"]["postrouting_fn"]["node_id"] == node_id:
                 return (
                     architecture_dict["children"]["postrouting_fn"],
                     "postrouting_fn",
@@ -2149,10 +2074,7 @@ class EinSpace:
                 if postrouting_fn is not None:
                     return postrouting_fn
         elif "computation_module" in architecture_dict["fn"].__name__:
-            if (
-                architecture_dict["children"]["computation_fn"]["node_id"]
-                == node_id
-            ):
+            if architecture_dict["children"]["computation_fn"]["node_id"] == node_id:
                 return (
                     architecture_dict["children"]["computation_fn"],
                     "computation_fn",
@@ -2166,10 +2088,7 @@ class EinSpace:
             if architecture_dict["children"]["first_fn"]["node_id"] == node_id:
                 architecture_dict["children"]["first_fn"] = new_node
                 return architecture_dict
-            elif (
-                architecture_dict["children"]["second_fn"]["node_id"]
-                == node_id
-            ):
+            elif architecture_dict["children"]["second_fn"]["node_id"] == node_id:
                 architecture_dict["children"]["second_fn"] = new_node
                 return architecture_dict
             else:
@@ -2185,16 +2104,10 @@ class EinSpace:
                 )
                 return architecture_dict
         elif "branching_module" in architecture_dict["fn"].__name__:
-            if (
-                architecture_dict["children"]["branching_fn"]["node_id"]
-                == node_id
-            ):
+            if architecture_dict["children"]["branching_fn"]["node_id"] == node_id:
                 architecture_dict["children"]["branching_fn"] = new_node
                 return architecture_dict
-            elif (
-                architecture_dict["children"]["aggregation_fn"]["node_id"]
-                == node_id
-            ):
+            elif architecture_dict["children"]["aggregation_fn"]["node_id"] == node_id:
                 architecture_dict["children"]["aggregation_fn"] = new_node
                 return architecture_dict
             else:
@@ -2205,32 +2118,22 @@ class EinSpace:
                     ):
                         # if the branching factor is 2, we allow different inner functions
                         if len(architecture_dict["children"]["inner_fn"]) == 2:
-                            architecture_dict["children"]["inner_fn"][
-                                i
-                            ] = new_node
+                            architecture_dict["children"]["inner_fn"][i] = new_node
                         # but if the branching factor is more than 2, we replace all inner functions with the same new node
-                        elif (
-                            len(architecture_dict["children"]["inner_fn"]) > 2
-                        ):
+                        elif len(architecture_dict["children"]["inner_fn"]) > 2:
                             for i in range(
                                 len(architecture_dict["children"]["inner_fn"])
                             ):
-                                architecture_dict["children"]["inner_fn"][
-                                    i
-                                ] = new_node
+                                architecture_dict["children"]["inner_fn"][i] = new_node
                         return architecture_dict
-                architecture_dict["children"]["branching_fn"] = (
-                    self.replace_node(
-                        architecture_dict["children"]["branching_fn"],
-                        node_id,
-                        new_node,
-                    )
+                architecture_dict["children"]["branching_fn"] = self.replace_node(
+                    architecture_dict["children"]["branching_fn"],
+                    node_id,
+                    new_node,
                 )
                 # if the branching factor is 2, we allow different inner functions
                 if len(architecture_dict["children"]["inner_fn"]) == 2:
-                    for i in range(
-                        len(architecture_dict["children"]["inner_fn"])
-                    ):
+                    for i in range(len(architecture_dict["children"]["inner_fn"])):
                         architecture_dict["children"]["inner_fn"][i] = (
                             self.replace_node(
                                 architecture_dict["children"]["inner_fn"][i],
@@ -2245,62 +2148,43 @@ class EinSpace:
                         node_id,
                         new_node,
                     )
-                    for i in range(
-                        len(architecture_dict["children"]["inner_fn"])
-                    ):
+                    for i in range(len(architecture_dict["children"]["inner_fn"])):
                         architecture_dict["children"]["inner_fn"][i] = inner_fn
-                architecture_dict["children"]["aggregation_fn"] = (
-                    self.replace_node(
-                        architecture_dict["children"]["aggregation_fn"],
-                        node_id,
-                        new_node,
-                    )
+                architecture_dict["children"]["aggregation_fn"] = self.replace_node(
+                    architecture_dict["children"]["aggregation_fn"],
+                    node_id,
+                    new_node,
                 )
                 return architecture_dict
         elif "routing_module" in architecture_dict["fn"].__name__:
-            if (
-                architecture_dict["children"]["prerouting_fn"]["node_id"]
-                == node_id
-            ):
+            if architecture_dict["children"]["prerouting_fn"]["node_id"] == node_id:
                 architecture_dict["children"]["prerouting_fn"] = new_node
                 return architecture_dict
-            elif (
-                architecture_dict["children"]["inner_fn"]["node_id"] == node_id
-            ):
+            elif architecture_dict["children"]["inner_fn"]["node_id"] == node_id:
                 architecture_dict["children"]["inner_fn"] = new_node
                 return architecture_dict
-            elif (
-                architecture_dict["children"]["postrouting_fn"]["node_id"]
-                == node_id
-            ):
+            elif architecture_dict["children"]["postrouting_fn"]["node_id"] == node_id:
                 architecture_dict["children"]["postrouting_fn"] = new_node
                 return architecture_dict
             else:
-                architecture_dict["children"]["prerouting_fn"] = (
-                    self.replace_node(
-                        architecture_dict["children"]["prerouting_fn"],
-                        node_id,
-                        new_node,
-                    )
+                architecture_dict["children"]["prerouting_fn"] = self.replace_node(
+                    architecture_dict["children"]["prerouting_fn"],
+                    node_id,
+                    new_node,
                 )
                 architecture_dict["children"]["inner_fn"] = self.replace_node(
                     architecture_dict["children"]["inner_fn"],
                     node_id,
                     new_node,
                 )
-                architecture_dict["children"]["postrouting_fn"] = (
-                    self.replace_node(
-                        architecture_dict["children"]["postrouting_fn"],
-                        node_id,
-                        new_node,
-                    )
+                architecture_dict["children"]["postrouting_fn"] = self.replace_node(
+                    architecture_dict["children"]["postrouting_fn"],
+                    node_id,
+                    new_node,
                 )
                 return architecture_dict
         elif "computation_module" in architecture_dict["fn"].__name__:
-            if (
-                architecture_dict["children"]["computation_fn"]["node_id"]
-                == node_id
-            ):
+            if architecture_dict["children"]["computation_fn"]["node_id"] == node_id:
                 architecture_dict["children"]["computation_fn"] = new_node
                 return architecture_dict
         return architecture_dict
@@ -2321,7 +2205,5 @@ class EinSpace:
             node_to_remove=node,
         )
         # we then replace the old architecture with the new one at that node
-        architecture_dict = self.replace_node(
-            architecture_dict, node_id, new_node
-        )
+        architecture_dict = self.replace_node(architecture_dict, node_id, new_node)
         return architecture_dict

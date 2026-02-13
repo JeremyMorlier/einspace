@@ -1,6 +1,3 @@
-import math
-from copy import deepcopy
-
 import torch
 import torch.nn as nn
 from einops.layers.torch import Reduce
@@ -43,7 +40,9 @@ class Network(nn.Module):
                     # On the wide ResNet backbone, we add an adaptive averaging pooling operation to upsample the features back to their original dimensions before output.
                     nn.AdaptiveAvgPool2d(output_shape),
                     # change the channels down to match the input
-                    nn.Conv2d(backbone_output_shape[1], 1, kernel_size=1, stride=1, padding=0),
+                    nn.Conv2d(
+                        backbone_output_shape[1], 1, kernel_size=1, stride=1, padding=0
+                    ),
                 )
             else:
                 self.head = nn.Sequential(
@@ -68,18 +67,18 @@ class Network(nn.Module):
 
         if stride == -1:  # Default to window size
             stride = L
-            assert (s_length % L == 0)
+            assert s_length % L == 0
 
         y = torch.zeros_like(x)[:, :1, :, :]
         counts = torch.zeros_like(x)[:, :1, :, :]
-        for i in range((((s_length - L) // stride)) + 1):
+        for i in range(((s_length - L) // stride) + 1):
             ip = i * stride
-            for j in range((((s_length - L) // stride)) + 1):
+            for j in range(((s_length - L) // stride) + 1):
                 jp = j * stride
-                out = self.forward(x[:, :, ip:ip + L, jp:jp + L])
+                out = self.forward(x[:, :, ip : ip + L, jp : jp + L])
                 out = out.permute(0, 3, 1, 2).contiguous()
-                y[:, :, ip:ip + L, jp:jp + L] += out
-                counts[:, :, ip:ip + L, jp:jp + L] += torch.ones_like(out)
+                y[:, :, ip : ip + L, jp : jp + L] += out
+                counts[:, :, ip : ip + L, jp : jp + L] += torch.ones_like(out)
         return y / counts
 
     def numel(self):

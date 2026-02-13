@@ -1,7 +1,5 @@
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
-
 from einspace.layers import Lambda
 
 nn.Lambda = Lambda
@@ -63,4 +61,3 @@ def abs(**kwargs):
 # global
 def softmax(**kwargs):
     return nn.Softmax(dim=-1)
-

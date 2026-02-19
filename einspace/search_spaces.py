@@ -1849,7 +1849,7 @@ class EinSpace:
                     f"Predicted number of parameters: {millify(num_predicted_params)}"
                 )
                 print(
-                    f"Predicted size of network: {millify(num_predicted_params * 64, bytes=True)}"
+                    f"Predicted size of network: {millify(num_predicted_params * 4, bytes=True)}"
                 )
 
                 # track memory usage
@@ -1912,7 +1912,7 @@ class EinSpace:
                         f"Predicted number of parameters: {millify(num_predicted_params)}"
                     )
                     print(
-                        f"Predicted size of network: {millify(num_predicted_params * 64, bytes=True)}"
+                        f"Predicted size of network: {millify(num_predicted_params * 4, bytes=True)}"
                     )
 
                     # track memory usage

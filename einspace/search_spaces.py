@@ -1902,9 +1902,6 @@ class EinSpace:
                         new_architecture_dict,
                         new_architecture_dict["input_shape"],
                     )
-                    # try to compile the new architecture
-                    modules = compiler.compile(new_architecture_dict)
-                    out = modules(torch.randn(new_architecture_dict["input_shape"]))
 
                     # check whether the architecture contains too many parameters
                     num_predicted_params = predict_num_parameters(new_architecture_dict)
@@ -1924,6 +1921,10 @@ class EinSpace:
                     # we can safely stop sampling
                     if num_predicted_params < 0.5 * available_memory:
                         compiled = True
+
+                        # try to compile the new architecture
+                        modules = compiler.compile(new_architecture_dict)
+                        out = modules(torch.randn(new_architecture_dict["input_shape"]))
                 except TimeoutError as e:
                     print("TimeoutError:", e)
                 except Exception as e:

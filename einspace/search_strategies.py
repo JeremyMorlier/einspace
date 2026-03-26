@@ -3,7 +3,7 @@ from collections import defaultdict, deque
 from copy import deepcopy
 from functools import partial
 from math import prod
-from os.path import exists, join
+from os.path import exists, join, getsize
 from pickle import dump, load
 from random import choice
 from time import time
@@ -14,6 +14,7 @@ import torch
 import torch.multiprocessing as mp
 from tqdm import tqdm
 
+from pympler import asizeof
 from einspace.search_spaces import EinSpace
 from einspace.utils import (
     ArchitectureCompilationError,
@@ -24,6 +25,15 @@ from einspace.utils import (
     millify,
     recurse_count_nodes,
 )
+
+
+def _report_history_size(save_path):
+    if exists(save_path):
+        size_bytes = getsize(save_path)
+        print(
+            f"History size (approx serialized): {millify(size_bytes, bytes=True)}",
+            flush=True,
+        )
 
 
 class Individual(object):
@@ -203,9 +213,7 @@ class RandomSearch:
         else:
             self.history = Population([])
 
-    def create_and_evaluate_individual(
-        self, architecture, modules, id, parent_id
-    ):
+    def create_and_evaluate_individual(self, architecture, modules, id, parent_id):
         best_model = self.evaluation_fn(architecture, modules)
         individual = Individual(id, parent_id, architecture, modules)
         individual.accuracy = best_model["val_score"]
@@ -241,10 +249,9 @@ class RandomSearch:
             except Exception as e:
                 print(e)
             # Save history
-            dump(
-                self.history.tolist(),
-                open(join("results", self.save_name + ".pkl"), "wb"),
-            )
+            with open(join("results", self.save_name + ".pkl"), "wb") as f:
+                dump(self.history.tolist(), f)
+            _report_history_size(join("results", self.save_name + ".pkl"))
         return self.history
 
 
@@ -260,7 +267,7 @@ class RegularisedEvolution:
         save_name,
         continue_search=False,
         architecture_seed=[],  # list of architectures to start with
-        update_population=True, # if True, the population will be updated
+        update_population=True,  # if True, the population will be updated
     ):
         """Algorithm for regularized evolution (i.e. aging evolution).
 
@@ -305,13 +312,9 @@ class RegularisedEvolution:
                 # except:
                 # print("No alive individuals in the population. Loading legacy way.", flush=True)
                 if self.update_population:
-                    self.population = Population(
-                        self.history[-self.init_pop_size:]
-                    )
+                    self.population = Population(self.history[-self.init_pop_size :])
                 else:
-                    self.population = Population(
-                        self.history[:self.init_pop_size]
-                    )
+                    self.population = Population(self.history[: self.init_pop_size])
                 print(
                     f"Loaded {len(self.population)} alive individuals from previous search.",
                     flush=True,
@@ -327,16 +330,13 @@ class RegularisedEvolution:
             self.population = Population([])
             self.history = Population([])
 
-    def create_and_evaluate_individual(
-        self, architecture, modules, id, parent_id
-    ):
+    def create_and_evaluate_individual(self, architecture, modules, id, parent_id):
         best_model = self.evaluation_fn(architecture, modules)
         individual = Individual(id, parent_id, architecture, modules)
         individual.accuracy = best_model["val_score"]
         individual.duration = best_model["duration"]
         individual.hpo_dict = {
-            key: best_model[key]
-            for key in ["lr", "momentum", "weight_decay", "epoch"]
+            key: best_model[key] for key in ["lr", "momentum", "weight_decay", "epoch"]
         }
         return individual
 
@@ -399,27 +399,37 @@ class RegularisedEvolution:
         # Initialize the population with random models.
         while len(self.population) < self.init_pop_size:
             print(f"Training architecture {len(self.history) + 1}", flush=True)
+            memory_usage = psutil.virtual_memory()
+            print(f"Memory Usage init: {memory_usage.percent}%", flush=True)
             try:
                 if len(self.architecture_seed) > 0:
                     population_seed = []
                     while len(self.architecture_seed) > 0:
-                        individual = self.new_individual(
-                            len(self.history), mode="seed"
-                        )
+                        individual = self.new_individual(len(self.history), mode="seed")
                         print(individual)
                         population_seed.append(individual)
                     k = self.init_pop_size // len(population_seed)
-                    for _, individual in zip(range(self.init_pop_size), cycle(population_seed)):
+                    for _, individual in zip(
+                        range(self.init_pop_size), cycle(population_seed)
+                    ):
                         print(
                             f"Adding individual {len(self.history)} to population: {individual}"
                         )
-                        self.population.append(deepcopy(individual))
-                        self.history.append(deepcopy(individual))
+                        # Avoid deepcopy - just use same individual reference
+                        # This saves memory as individuals don't store model data
+                        self.population.append(individual)
+                        self.history.append(individual)
+                        print(
+                            f"Size of individual: {asizeof.asizeof(individual)} bytes"
+                        )
+                        print(
+                            f"Size of Population: {asizeof.asizeof(self.population)} bytes"
+                        )
+                        print(f"Size of history: {asizeof.asizeof(self.history)} bytes")
+
                     print("Seed population created.")
                 else:
-                    individual = self.new_individual(
-                        len(self.history), mode="sample"
-                    )
+                    individual = self.new_individual(len(self.history), mode="sample")
                     self.population.append(individual)
                     self.history.append(individual)
                     print(individual)
@@ -445,10 +455,9 @@ class RegularisedEvolution:
                 )
                 print(traceback.format_exc())
             # Save history
-            dump(
-                self.history.tolist(),
-                open(join("results", self.save_name + ".pkl"), "wb"),
-            )
+            with open(join("results", self.save_name + ".pkl"), "wb") as f:
+                dump(self.history.tolist(), f)
+            _report_history_size(join("results", self.save_name + ".pkl"))
             # track memory usage
             memory_usage = psutil.virtual_memory()
             print(f"Memory Usage: {memory_usage.percent}%", flush=True)
@@ -473,15 +482,20 @@ class RegularisedEvolution:
                 # kill oldest individuals
                 while len(self.population) > self.init_pop_size:
                     self.population.popleft()
+                    memory_usage = psutil.virtual_memory()
+                    print(
+                        f"Memory Usage kill oldest: {memory_usage.percent}%", flush=True
+                    )
+
             # Save history
-            dump(
-                self.history.tolist(),
-                open(join("results", self.save_name + ".pkl"), "wb"),
-            )
+            with open(join("results", self.save_name + ".pkl"), "wb") as f:
+                dump(self.history.tolist(), f)
+            _report_history_size(join("results", self.save_name + ".pkl"))
             # track memory usage
             memory_usage = psutil.virtual_memory()
             print(f"Memory Usage: {memory_usage.percent}%", flush=True)
-
+            print(f"Size of Population: {asizeof.asizeof(self.population)} bytes")
+            print(f"Size of history: {asizeof.asizeof(self.history)} bytes")
         return self.history
 
 

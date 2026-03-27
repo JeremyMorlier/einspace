@@ -276,8 +276,20 @@ class EinSpace:
         node_to_remove=None,
     ):
         """Recursively sample each module of the architecture."""
+        # Memory baseline
+        memory_usage = psutil.virtual_memory()
+        logger.info(
+            f"recurse_sample() entry [level={level}, module_depth={module_depth}]: {memory_usage.percent}%, Available: {millify(memory_usage.available, bytes=True)}"
+        )
+
         # print(level, input_shape, other_shape, last_im_input_shape)
         options = deepcopy(self.available_options[level])
+
+        # Memory after deepcopy
+        memory_usage = psutil.virtual_memory()
+        logger.info(
+            f"After deepcopy options: {memory_usage.percent}%, Options count: {len(options)}"
+        )
         # if this is a mutation, we remove the node that we are mutating
         if node_to_remove is not None:
             options.remove(node_to_remove["fn"])
@@ -292,8 +304,17 @@ class EinSpace:
             input_branching_factor,
             module_depth,
         )
+
+        # Memory after filtering
+        memory_usage = psutil.virtual_memory()
+        logger.info(
+            f"After filter_options: {memory_usage.percent}%, Remaining options: {len(options)}"
+        )
+
         d = None
+        iteration_count = 0
         while d is None:
+            iteration_count += 1
             sampling_time = time.time() - self.start_time
             # report how long the sampling has taken
             # if sampling_time > 0 and int(sampling_time) % 60 == 0:
@@ -342,7 +363,17 @@ class EinSpace:
                     last_im_input_shape,
                     module_depth=module_depth,
                 )
+
+                # Memory after successful instantiation
+                memory_usage = psutil.virtual_memory()
+                logger.info(
+                    f"Successfully instantiated {chosen.__name__} on iteration {iteration_count}: {memory_usage.percent}%, Available: {millify(memory_usage.available, bytes=True)}"
+                )
             except SearchSpaceSamplingError:
+                memory_usage = psutil.virtual_memory()
+                logger.info(
+                    f"SearchSpaceSamplingError on iteration {iteration_count} for {chosen.__name__}: {memory_usage.percent}%, Options remaining: {len(options)}"
+                )
                 if chosen in options:
                     options.remove(chosen)
                     # f.write(f"\t\t Backtracking. Removed {chosen.__name__} from options.\n")
@@ -354,6 +385,12 @@ class EinSpace:
                         + ", ".join([fn.__name__ for fn in options])
                         + "]. Trying another option."
                     )
+
+        # Memory at function exit
+        memory_usage = psutil.virtual_memory()
+        logger.info(
+            f"recurse_sample() exit [level={level}] after {iteration_count} iterations: {memory_usage.percent}%, Available: {millify(memory_usage.available, bytes=True)}, Result size: {asizeof.asizeof(d)} bytes"
+        )
         return d
 
     def filter_options(

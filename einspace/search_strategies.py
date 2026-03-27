@@ -1,3 +1,4 @@
+import logging
 import traceback
 from collections import defaultdict, deque
 from copy import deepcopy
@@ -15,6 +16,14 @@ import torch.multiprocessing as mp
 from tqdm import tqdm
 
 from pympler import asizeof
+
+# Configure logging with timestamps
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - [MEMORY] - %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
+logger = logging.getLogger(__name__)
 from einspace.search_spaces import EinSpace
 from einspace.utils import (
     ArchitectureCompilationError,
@@ -396,33 +405,28 @@ class RegularisedEvolution:
             print("Started searching with Random Mutation")
         print("############################################")
         memory_usage = psutil.virtual_memory()
-        print(
-            f"Memory Usage at start: {memory_usage.percent}%, Available: {millify(memory_usage.available, bytes=True)}",
-            flush=True,
+        logger.info(
+            f"Memory Usage at start: {memory_usage.percent}%, Available: {millify(memory_usage.available, bytes=True)}"
         )
 
         # Initialize the population with random models.
         while len(self.population) < self.init_pop_size:
             print(f"Training architecture {len(self.history) + 1}", flush=True)
             memory_usage = psutil.virtual_memory()
-            print(
-                f"Memory Usage init: {memory_usage.percent}%, Available: {millify(memory_usage.available, bytes=True)}",
-                flush=True,
+            logger.info(
+                f"Memory Usage init: {memory_usage.percent}%, Available: {millify(memory_usage.available, bytes=True)}"
             )
             try:
                 if len(self.architecture_seed) > 0:
                     memory_usage = psutil.virtual_memory()
-                    print(f"Memory before seeding: {memory_usage.percent}%", flush=True)
+                    logger.info(f"Memory before seeding: {memory_usage.percent}%")
                     population_seed = []
                     while len(self.architecture_seed) > 0:
                         individual = self.new_individual(len(self.history), mode="seed")
                         print(individual)
                         population_seed.append(individual)
                     memory_usage = psutil.virtual_memory()
-                    print(
-                        f"Memory after seed creation: {memory_usage.percent}%",
-                        flush=True,
-                    )
+                    logger.info(f"Memory after seed creation: {memory_usage.percent}%")
                     k = self.init_pop_size // len(population_seed)
                     for _, individual in zip(
                         range(self.init_pop_size), cycle(population_seed)
@@ -444,9 +448,8 @@ class RegularisedEvolution:
 
                     print("Seed population created.")
                     memory_usage = psutil.virtual_memory()
-                    print(
-                        f"Memory after adding seed to population: {memory_usage.percent}%",
-                        flush=True,
+                    logger.info(
+                        f"Memory after adding seed to population: {memory_usage.percent}%"
                     )
                 else:
                     individual = self.new_individual(len(self.history), mode="sample")
@@ -454,9 +457,8 @@ class RegularisedEvolution:
                     self.history.append(individual)
                     print(individual)
                     memory_usage = psutil.virtual_memory()
-                    print(
-                        f"Memory after adding sampled individual: {memory_usage.percent}%",
-                        flush=True,
+                    logger.info(
+                        f"Memory after adding sampled individual: {memory_usage.percent}%"
                     )
             except ArchitectureCompilationError as e:
                 print(
@@ -485,16 +487,14 @@ class RegularisedEvolution:
             _report_history_size(join("results", self.save_name + ".pkl"))
             # track memory usage
             memory_usage = psutil.virtual_memory()
-            print(
-                f"Memory Usage: {memory_usage.percent}%, Available: {millify(memory_usage.available, bytes=True)}",
-                flush=True,
+            logger.info(
+                f"Memory Usage: {memory_usage.percent}%, Available: {millify(memory_usage.available, bytes=True)}"
             )
 
         # Population initialization complete
         memory_usage = psutil.virtual_memory()
-        print(
-            f"Population initialization complete. Memory: {memory_usage.percent}%, Population size: {len(self.population)}",
-            flush=True,
+        logger.info(
+            f"Population initialization complete. Memory: {memory_usage.percent}%, Population size: {len(self.population)}"
         )
 
         # Carry out evolution in cycles. Each cycle produces a model and removes
@@ -503,23 +503,19 @@ class RegularisedEvolution:
             # Create and evaluate new individuals via mutation.
             print(f"Training architecture {len(self.history) + 1}", flush=True)
             memory_usage = psutil.virtual_memory()
-            print(
-                f"Memory before mutation: {memory_usage.percent}%, Available: {millify(memory_usage.available, bytes=True)}",
-                flush=True,
+            logger.info(
+                f"Memory before mutation: {memory_usage.percent}%, Available: {millify(memory_usage.available, bytes=True)}"
             )
             try:
                 child = self.new_individual(len(self.history), mode="mutate")
                 memory_usage = psutil.virtual_memory()
-                print(
-                    f"Memory after creating child: {memory_usage.percent}%", flush=True
-                )
+                logger.info(f"Memory after creating child: {memory_usage.percent}%")
                 if self.update_population:
                     self.population.append(child)
                 self.history.append(child)
                 memory_usage = psutil.virtual_memory()
-                print(
-                    f"Memory after adding child to history: {memory_usage.percent}%",
-                    flush=True,
+                logger.info(
+                    f"Memory after adding child to history: {memory_usage.percent}%"
                 )
                 print(child, flush=True)
             except Exception as e:
@@ -532,9 +528,8 @@ class RegularisedEvolution:
                 while len(self.population) > self.init_pop_size:
                     self.population.popleft()
                     memory_usage = psutil.virtual_memory()
-                    print(
-                        f"Memory after removing individual: {memory_usage.percent}%, Available: {millify(memory_usage.available, bytes=True)}",
-                        flush=True,
+                    logger.info(
+                        f"Memory after removing individual: {memory_usage.percent}%, Available: {millify(memory_usage.available, bytes=True)}"
                     )
 
             # Save history
@@ -543,22 +538,20 @@ class RegularisedEvolution:
             _report_history_size(join("results", self.save_name + ".pkl"))
             # track memory usage
             memory_usage = psutil.virtual_memory()
-            print(
-                f"Memory after saving history: {memory_usage.percent}%, Available: {millify(memory_usage.available, bytes=True)}",
-                flush=True,
+            logger.info(
+                f"Memory after saving history: {memory_usage.percent}%, Available: {millify(memory_usage.available, bytes=True)}"
             )
-            print(f"Size of Population: {asizeof.asizeof(self.population)} bytes")
-            print(f"Size of history: {asizeof.asizeof(self.history)} bytes")
+            logger.info(f"Size of Population: {asizeof.asizeof(self.population)} bytes")
+            logger.info(f"Size of history: {asizeof.asizeof(self.history)} bytes")
 
         # Final memory state
         memory_usage = psutil.virtual_memory()
         print("############################################")
-        print(
-            f"Search completed. Final Memory Usage: {memory_usage.percent}%, Available: {millify(memory_usage.available, bytes=True)}",
-            flush=True,
+        logger.info(
+            f"Search completed. Final Memory Usage: {memory_usage.percent}%, Available: {millify(memory_usage.available, bytes=True)}"
         )
-        print(f"Total individuals in history: {len(self.history)}", flush=True)
-        print(f"Final history size: {asizeof.asizeof(self.history)} bytes", flush=True)
+        logger.info(f"Total individuals in history: {len(self.history)}")
+        logger.info(f"Final history size: {asizeof.asizeof(self.history)} bytes")
         print("############################################")
         return self.history
 

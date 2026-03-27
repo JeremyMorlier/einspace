@@ -1,3 +1,4 @@
+import logging
 import time
 from collections import OrderedDict
 from copy import deepcopy
@@ -7,7 +8,15 @@ from random import choice, choices, randint
 
 import psutil
 import torch
+from pympler import asizeof
 
+# Configure logging with timestamps
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - [MEMORY] - %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
+logger = logging.getLogger(__name__)
 from einspace.activations import *
 from einspace.compiler import Compiler
 from einspace.layers import *
@@ -1835,12 +1844,34 @@ class EinSpace:
         """Sample a random architecture."""
         r = randint(0, 10000)
         sampling_done = False
+
+        # Memory baseline
+        memory_usage = psutil.virtual_memory()
+        logger.info(
+            f"sample() start: {memory_usage.percent}%, Available: {millify(memory_usage.available, bytes=True)}"
+        )
+
         while not sampling_done:
             self.start_time = time.time()
             f = None
             try:
+                # Memory before recurse_sample
+                memory_usage = psutil.virtual_memory()
+                logger.info(
+                    f"Before recurse_sample: {memory_usage.percent}%, Available: {millify(memory_usage.available, bytes=True)}"
+                )
+
                 architecture_dict = self.recurse_sample(
                     f, "network", self.input_shape, None, self.input_mode, None
+                )
+
+                # Memory after recurse_sample
+                memory_usage = psutil.virtual_memory()
+                logger.info(
+                    f"After recurse_sample: {memory_usage.percent}%, Available: {millify(memory_usage.available, bytes=True)}"
+                )
+                logger.info(
+                    f"Architecture dict size: {asizeof.asizeof(architecture_dict)} bytes"
                 )
 
                 # check whether the architecture contains too many parameters
@@ -1861,15 +1892,47 @@ class EinSpace:
                 # we can safely stop sampling
                 if num_predicted_params < 0.5 * available_memory:
                     sampling_done = True
+                    logger.info(f"Architecture passed checks, exiting sampling loop")
+                else:
+                    logger.info(f"Architecture too large, resampling")
             except TimeoutError as e:
                 print("TimeoutError:", e)
+
+        # Memory before recurse_repeat
+        memory_usage = psutil.virtual_memory()
+        logger.info(
+            f"Before recurse_repeat (n={self.num_repeated_cells}): {memory_usage.percent}%, Available: {millify(memory_usage.available, bytes=True)}"
+        )
 
         architecture_dict = self.recurse_repeat(
             architecture_dict, self.num_repeated_cells
         )
+
+        # Memory after recurse_repeat
+        memory_usage = psutil.virtual_memory()
+        logger.info(
+            f"After recurse_repeat: {memory_usage.percent}%, Available: {millify(memory_usage.available, bytes=True)}"
+        )
+        logger.info(
+            f"Repeated architecture dict size: {asizeof.asizeof(architecture_dict)} bytes"
+        )
+
+        # Memory before recurse_num_nodes
+        memory_usage = psutil.virtual_memory()
+        logger.info(
+            f"Before recurse_num_nodes: {memory_usage.percent}%, Available: {millify(memory_usage.available, bytes=True)}"
+        )
+
         # Now we label all nodes within the architecture dictionary with a number
         self.num_nodes = 0
         self.recurse_num_nodes(architecture_dict)
+
+        # Memory after recurse_num_nodes
+        memory_usage = psutil.virtual_memory()
+        logger.info(
+            f"After recurse_num_nodes: {memory_usage.percent}%, Available: {millify(memory_usage.available, bytes=True)}, Total nodes: {self.num_nodes}"
+        )
+
         return architecture_dict
 
     def mutate(self, architecture_dict, safe_mode=True):

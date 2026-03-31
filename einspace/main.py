@@ -1,5 +1,9 @@
 from argparse import ArgumentParser
 from pprint import pprint
+import logging
+import logging.handlers
+import sys
+from datetime import datetime
 
 import torch
 import yaml
@@ -15,7 +19,81 @@ from einspace.seed_architectures import seed_architectures
 from einspace.trainers import Trainer
 from einspace.utils import get_exp_name, set_seed
 
+
+def setup_logging(log_file=None):
+    """
+    Configure logging to output to both console and file.
+
+    Args:
+        log_file: Path to log file. If None, uses default timestamp-based name.
+    """
+    # Create log file path if not provided
+    if log_file is None:
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        log_file = f"logs/einspace_{timestamp}.log"
+
+    # Ensure logs directory exists
+    import os
+
+    os.makedirs(os.path.dirname(log_file) if os.path.dirname(log_file) else ".", exist_ok=True)
+
+    # Configure root logger to capture all submodule logs
+    root_logger = logging.getLogger()
+    root_logger.setLevel(logging.DEBUG)
+
+    # Remove existing handlers to avoid duplicates
+    for handler in root_logger.handlers[:]:
+        root_logger.removeHandler(handler)
+
+    # Create formatter
+    formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s", datefmt="%Y-%m-%d %H:%M:%S")
+
+    # File handler for all messages (including DEBUG)
+    file_handler = logging.handlers.RotatingFileHandler(
+        log_file,
+        maxBytes=50 * 1024 * 1024,  # 50MB
+        backupCount=5,
+    )
+    file_handler.setLevel(logging.DEBUG)
+    file_handler.setFormatter(formatter)
+    root_logger.addHandler(file_handler)
+
+    # Console handler for INFO and above
+    console_handler = logging.StreamHandler(sys.stdout)
+    console_handler.setLevel(logging.INFO)
+    console_handler.setFormatter(formatter)
+    root_logger.addHandler(console_handler)
+
+    # Redirect stderr to logger
+    class LoggerWriter:
+        """Redirect stderr to logger."""
+
+        def __init__(self, logger, level):
+            self.logger = logger
+            self.level = level
+            self.linebuf = ""
+
+        def write(self, buf):
+            for line in buf.rstrip().split("\n"):
+                if line:
+                    self.logger.log(self.level, line)
+
+        def flush(self):
+            pass
+
+    # Redirect stderr to ERROR level logging
+    sys.stderr = LoggerWriter(root_logger, logging.ERROR)
+
+    return root_logger
+
+
 if __name__ == "__main__":
+    # Initialize logging first
+    logger = setup_logging()
+    logger.info("=" * 80)
+    logger.info("EinSpace Application Started")
+    logger.info("=" * 80)
+
     parser = ArgumentParser()
     parser.add_argument("--device", type=str)
     parser.add_argument("--config", type=str)
@@ -112,9 +190,7 @@ if __name__ == "__main__":
                     config["num_classes"],
                     config,
                 )
-                zero_cost_proxy = config["search_strategy_architecture_seed"].split(
-                    "_"
-                )[-1]
+                zero_cost_proxy = config["search_strategy_architecture_seed"].split("_")[-1]
                 measure = find_measures(
                     model,
                     train_loader,
@@ -133,9 +209,7 @@ if __name__ == "__main__":
                 continue_search=config["search_strategy_continue_search"],
             )
             warmup_history = random_search.search()
-            architecture_seed = warmup_history[
-                : config["search_strategy_init_pop_size"]
-            ]
+            architecture_seed = warmup_history[: config["search_strategy_init_pop_size"]]
         elif (
             config["search_strategy_architecture_seed"] is not None
             and "+" in config["search_strategy_architecture_seed"]
@@ -203,3 +277,7 @@ if __name__ == "__main__":
     best = trainer.train()
     # report best performance
     print(f"Best accuracy: {best.accuracy} at epoch {best.epoch}")
+    logger.info("=" * 80)
+    logger.info(f"Best accuracy: {best.accuracy} at epoch {best.epoch}")
+    logger.info("=" * 80)
+    logger.info("EinSpace Application Completed Successfully")

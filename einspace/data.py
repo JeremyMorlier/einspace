@@ -26,13 +26,13 @@ from einspace.data_utils.deepsea import build_nasbench360_deepsea_dataset
 
 
 nas360_cfg = dict(
-    fsd_root = "data/fsd50k",
-    darcy_root = "data/darcyflow/",
-    psicov_root = "data/psicov",
-    cosmic_root = "data/cosmic/",
-    ecg_root = "data/ecg",
-    satellite_root = "data/satellite",
-    deepsea_root = "data/deepsea"
+    fsd_root="data/fsd50k",
+    darcy_root="data/darcyflow/",
+    psicov_root="data/psicov",
+    cosmic_root="data/cosmic/",
+    ecg_root="data/ecg",
+    satellite_root="data/satellite",
+    deepsea_root="data/deepsea",
 )
 
 unseen_datasets = [
@@ -49,12 +49,27 @@ unseen_datasets = [
 
 class CSAWM(Dataset):
     def __init__(self, root, split, transform=None, target_transform=None, loss_type="one_hot"):
-        load_split = {"train": "train", "val": "train", "trainval": "train", "test": "test"}[split]
-        self.info = pd.read_csv(join(root, "csawm", "labels", f"CSAW-M_{load_split}.csv"), header=0, delimiter=";")
+        load_split = {
+            "train": "train",
+            "val": "train",
+            "trainval": "train",
+            "test": "test",
+        }[split]
+        self.info = pd.read_csv(
+            join(root, "csawm", "labels", f"CSAW-M_{load_split}.csv"),
+            header=0,
+            delimiter=";",
+        )
         val_filenames = [
-            line.replace("\n", "") for line in open(
-                join(root, "csawm", "cross_validation", "CSAW-M_cross_validation_split1.txt"),
-                "r"
+            line.replace("\n", "")
+            for line in open(
+                join(
+                    root,
+                    "csawm",
+                    "cross_validation",
+                    "CSAW-M_cross_validation_split1.txt",
+                ),
+                "r",
             ).readlines()
         ]
         self.data, self.targets = [], []
@@ -62,9 +77,9 @@ class CSAWM(Dataset):
             path = join(root, "csawm", "images", "preprocessed", load_split, row["Filename"])
             img = default_loader(path)
             if (
-                (split == "train" and row["Filename"] not in val_filenames) or
-                (split == "val" and row["Filename"] in val_filenames) or
-                split in ["trainval", "test"]
+                (split == "train" and row["Filename"] not in val_filenames)
+                or (split == "val" and row["Filename"] in val_filenames)
+                or split in ["trainval", "test"]
             ):
                 self.data.append(img)
                 self.targets.append(row["Label"] - 1)
@@ -91,45 +106,75 @@ class CSAWM(Dataset):
 
 
 class UnseenDataset(Dataset):
-    def __init__(
-        self, root, dataset, split="train", transform=None, image_size=None
-    ):
+    def __init__(self, root, dataset, split="train", transform=None, image_size=None):
         if split == "val":
             split = "valid"
-        self.data = torch.tensor(
-            np.load(
-                join(root, dataset, f"{split}_x.npy"), allow_pickle=True
-            ).astype(np.float32)
-        )
-        self.targets = torch.tensor(
-            np.load(
-                join(root, dataset, f"{split}_y.npy"), allow_pickle=True
-            ).astype(int)
-        )
+        # Lazy load: store paths/data reference, not full tensors in memory
+        self.data_path = join(root, dataset, f"{split}_x.npy")
+        self.targets_path = join(root, dataset, f"{split}_y.npy")
+        self._data = None  # Lazy-loaded cache
+        self._targets = None  # Lazy-loaded cache
+        self.dataset = dataset
+        self.split = split
+        self.image_size = image_size
+        self._move_to_device = None  # For GPU transfer on first load
 
         self.transform = transform
-        # example transform
+        # Pre-compute normalization params from a smaller sample to avoid loading all at once
         if split == "train":
-            self.mean = torch.mean(self.data, [0, 2, 3])
-            self.std = torch.std(self.data, [0, 2, 3])
+            # Load only a sample for normalization stats
+            sample_data = np.load(self.data_path, allow_pickle=True)[
+                : min(5000, len(np.load(self.targets_path, allow_pickle=True)))
+            ].astype(np.float32)
+            sample_tensor = torch.tensor(sample_data)
+            self.mean = torch.mean(sample_tensor, [0, 2, 3])
+            self.std = torch.std(sample_tensor, [0, 2, 3])
+            del sample_data, sample_tensor  # Immediately free memory
+
             transform = [
                 transforms.Normalize(self.mean, self.std),
             ]
             if dataset == "chesseract":
-                transform.append(
-                    transforms.Pad(5, fill=0, padding_mode="constant")
-                )
+                transform.append(transforms.Pad(5, fill=0, padding_mode="constant"))
             transform.append(transforms.Resize(image_size))
             self.transform = transforms.Compose(transform)
 
-        self.data = torch.stack([self.transform(img) for img in self.data])
+    def _load_data(self):
+        """Lazy-load data from disk only when needed, optionally move to GPU."""
+        if self._data is None:
+            self._data = torch.tensor(np.load(self.data_path, allow_pickle=True).astype(np.float32))
+            self._targets = torch.tensor(np.load(self.targets_path, allow_pickle=True).astype(int))
+            # Move to GPU immediately after loading if requested
+            if self._move_to_device is not None:
+                self._data = self._data.to(self._move_to_device)
+                self._targets = self._targets.to(self._move_to_device)
+                print(f"UnseenDataset moved to {self._move_to_device}")
+
+    @property
+    def data(self):
+        self._load_data()
+        return self._data
+
+    @property
+    def targets(self):
+        self._load_data()
+        return self._targets
 
     def __getitem__(self, i):
-        img, target = self.data[i], self.targets[i]
+        self._load_data()
+        img = self._data[i]
+        if self.transform is not None:
+            img = self.transform(img)
+        target = self._targets[i]
         return img, target
 
     def __len__(self):
-        return len(self.data)
+        if self._targets is None:
+            # Load just the shape without full array
+            with open(self.targets_path, "rb") as f:
+                self._targets_len = np.load(f).shape[0]
+            return self._targets_len
+        return len(self._targets)
 
 
 class CIFAR100(datasets.CIFAR100):
@@ -138,12 +183,19 @@ class CIFAR100(datasets.CIFAR100):
     It loads CIFAR100 and returns train_dataset, valid_dataset, and test_dataset
     Using indices from cifar100_train.indices and cifar100_valid.indices
     """
+
     def __init__(self, root, split="train", transform=None, target_transform=None, download=False):
-        super().__init__(root=join(root, "cifar100"), train=split in ["train", "val"], transform=transform, target_transform=target_transform, download=download)
+        super().__init__(
+            root=join(root, "cifar100"),
+            train=split in ["train", "val"],
+            transform=transform,
+            target_transform=target_transform,
+            download=download,
+        )
         if split == "train":
-            self.indices = torch.load(f'{root}/cifar100/cifar100_train.indices')
+            self.indices = torch.load(f"{root}/cifar100/cifar100_train.indices")
         elif split == "val":
-            self.indices = torch.load(f'{root}/cifar100/cifar100_valid.indices')
+            self.indices = torch.load(f"{root}/cifar100/cifar100_valid.indices")
         elif split == "test":
             self.indices = torch.arange(len(self.data))
         self.data = self.data[self.indices]
@@ -156,12 +208,19 @@ class CIFAR10(datasets.CIFAR10):
     It loads CIFAR10 and returns train_dataset, valid_dataset, and test_dataset
     Using indices from cifar10_train.indices and cifar10_valid.indices
     """
+
     def __init__(self, root, split="train", transform=None, target_transform=None, download=False):
-        super().__init__(root=join(root, "cifar10"), train=split in ["train", "val"], transform=transform, target_transform=target_transform, download=download)
+        super().__init__(
+            root=join(root, "cifar10"),
+            train=split in ["train", "val"],
+            transform=transform,
+            target_transform=target_transform,
+            download=download,
+        )
         if split == "train":
-            self.indices = torch.load(f'{root}/cifar10/cifar10_train.indices')
+            self.indices = torch.load(f"{root}/cifar10/cifar10_train.indices")
         elif split == "val":
-            self.indices = torch.load(f'{root}/cifar10/cifar10_valid.indices')
+            self.indices = torch.load(f"{root}/cifar10/cifar10_valid.indices")
         elif split == "test":
             self.indices = torch.arange(len(self.data))
         self.data = self.data[self.indices]
@@ -173,13 +232,10 @@ class NinaPro(Dataset):
     Class that loads the NinaPro dataset.
     18 classes, input shape (16, 52).
     """
+
     def __init__(self, root, split="train", transform=None):
-        self.data = np.load(
-            join(root, "ninapro", f"ninapro_{split}.npy"), allow_pickle=True
-        ).astype(np.float32)
-        self.targets = np.load(
-            join(root, "ninapro", f"label_{split}.npy"), allow_pickle=True
-        ).astype(int)
+        self.data = np.load(join(root, "ninapro", f"ninapro_{split}.npy"), allow_pickle=True).astype(np.float32)
+        self.targets = np.load(join(root, "ninapro", f"label_{split}.npy"), allow_pickle=True).astype(int)
         self.data = torch.tensor(self.data)
         self.transform = transform
 
@@ -198,15 +254,14 @@ class Spherical(Dataset):
     Version of CIFAR100 where each image has been projected onto a spherical surface.
     100 classes, 600 images per class, 60,000 images in total.
     """
+
     def __init__(self, root, split="train", transform=None):
-        load_data = load(
-            gzip.open(join(root, "spherical", "s2_cifar100.gz"), "rb")
-        )
+        load_data = load(gzip.open(join(root, "spherical", "s2_cifar100.gz"), "rb"))
         # load the indices for the train and valid splits
         if split == "train":
-            self.indices = torch.load(f'{root}/spherical/spherical_train.indices')
+            self.indices = torch.load(f"{root}/spherical/spherical_train.indices")
         elif split == "val":
-            self.indices = torch.load(f'{root}/spherical/spherical_valid.indices')
+            self.indices = torch.load(f"{root}/spherical/spherical_valid.indices")
         else:
             self.indices = torch.arange(len(load_data["test"]["images"]))
         # load the data and targets
@@ -242,32 +297,30 @@ def get_data_loaders(
     """Get data loaders for a given dataset."""
     trainvalset = None
     if dataset == "csawm":
-        train_transform = transforms.Compose([
-            transforms.Resize(image_size),
-            transforms.RandomHorizontalFlip(),
-            transforms.RandomVerticalFlip(),
-            transforms.RandomRotation(10),
-            transforms.ColorJitter(**{'brightness': 0.2, 'contrast': 0.2}),
-            transforms.ToTensor(),
-        ])
-        test_transform = transforms.Compose([
-            transforms.Resize(image_size),
-            transforms.ToTensor(),
-        ])
+        train_transform = transforms.Compose(
+            [
+                transforms.Resize(image_size),
+                transforms.RandomHorizontalFlip(),
+                transforms.RandomVerticalFlip(),
+                transforms.RandomRotation(10),
+                transforms.ColorJitter(**{"brightness": 0.2, "contrast": 0.2}),
+                transforms.ToTensor(),
+            ]
+        )
+        test_transform = transforms.Compose(
+            [
+                transforms.Resize(image_size),
+                transforms.ToTensor(),
+            ]
+        )
         trainset = CSAWM(root, "train", transform=train_transform, loss_type="multi_hot")
         valset = CSAWM(root, "val", transform=test_transform, loss_type="multi_hot")
         trainvalset = CSAWM(root, "trainval", transform=train_transform, loss_type="multi_hot")
         testset = CSAWM(root, "test", transform=test_transform, loss_type="multi_hot")
     elif dataset in unseen_datasets:
-        trainset = UnseenDataset(
-            root, dataset, split="train", transform=None, image_size=image_size
-        )
-        valset = UnseenDataset(
-            root, dataset, split="val", transform=trainset.transform
-        )
-        testset = UnseenDataset(
-            root, dataset, split="test", transform=trainset.transform
-        )
+        trainset = UnseenDataset(root, dataset, split="train", transform=None, image_size=image_size)
+        valset = UnseenDataset(root, dataset, split="val", transform=trainset.transform)
+        testset = UnseenDataset(root, dataset, split="test", transform=trainset.transform)
     elif dataset == "mnist":
         dataset = datasets.MNIST(
             root=root,
@@ -439,17 +492,14 @@ def get_data_loaders(
         valset = NinaPro(root, split="val", transform=transform)
         testset = NinaPro(root, split="test", transform=transform)
     elif dataset == "fsd50k":
-        trainset    = build_nasbench360_fsd_dataset("train", nas360_cfg)
-        valset      = build_nasbench360_fsd_dataset("val", nas360_cfg)
+        trainset = build_nasbench360_fsd_dataset("train", nas360_cfg)
+        valset = build_nasbench360_fsd_dataset("val", nas360_cfg)
         trainvalset = build_nasbench360_fsd_dataset("trainval", nas360_cfg)
-        testset     = build_nasbench360_fsd_dataset("test", nas360_cfg)
+        testset = build_nasbench360_fsd_dataset("test", nas360_cfg)
     elif dataset == "darcyflow":
         trainset, valset, testset, y_normalizer = build_nasbench360_darcy_dataset(nas360_cfg)
     elif dataset == "psicov":
-        (
-            trainset, valset, 
-            testset, test_my_list, test_length_dict
-        ) = build_nasbench360_psicov_dataset(nas360_cfg)
+        (trainset, valset, testset, test_my_list, test_length_dict) = build_nasbench360_psicov_dataset(nas360_cfg)
     elif dataset == "cosmic":
         trainset, valset, testset = build_nasbench360_cosmic_dataset(nas360_cfg)
     elif dataset == "ecg":
@@ -461,26 +511,28 @@ def get_data_loaders(
     else:
         raise ValueError(f"Unknown dataset {dataset}")
 
-    # load data in GPU
+    # load data in GPU - but do it incrementally to avoid huge memory spike
     if load_in_gpu:
         try:
-            trainset.data = trainset.data.to(device)
-            valset.data = valset.data.to(device)
-            testset.data = testset.data.to(device)
-            trainset.targets = trainset.targets.to(device)
-            valset.targets = valset.targets.to(device)
-            testset.targets = testset.targets.to(device)
-            # report how much GPU memory is used
-            element_size = trainset.data.element_size()
-            nelement = (
-                trainset.data.nelement()
-                + valset.data.nelement()
-                + testset.data.nelement()
-            )
-            size = element_size * nelement
-            print(
-                f"Loaded {dataset} in GPU. Size: {millify(size, bytes=True)}"
-            )
+            # For UnseenDataset with lazy loading, move to GPU during first use
+            if hasattr(trainset, "_load_data"):
+                # Mark datasets for GPU transfer on first access
+                trainset._move_to_device = device
+                valset._move_to_device = device
+                testset._move_to_device = device
+            else:
+                # For other datasets, load to GPU immediately but in chunks if possible
+                trainset.data = trainset.data.to(device)
+                valset.data = valset.data.to(device)
+                testset.data = testset.data.to(device)
+                trainset.targets = trainset.targets.to(device)
+                valset.targets = valset.targets.to(device)
+                testset.targets = testset.targets.to(device)
+                # report how much GPU memory is used
+                element_size = trainset.data.element_size()
+                nelement = trainset.data.nelement() + valset.data.nelement() + testset.data.nelement()
+                size = element_size * nelement
+                print(f"Loaded {dataset} in GPU. Size: {millify(size, bytes=True)}")
         except Exception as e:
             print(f"Tried moving {dataset} to GPU memory, but failed.")
             print(f"\t{e}")

@@ -2,7 +2,6 @@ from copy import deepcopy
 from random import choice
 from time import time
 import traceback
-import psutil
 
 import torch
 import torch.nn as nn
@@ -226,7 +225,7 @@ class Trainer:
                             "epoch_time": int(time() - epoch_start),
                         }
                         wandb.log(log_dict)
-                    except Exception as e:
+                    except Exception as _:
                         pass  # Silently fail if wandb not available
                 except ValueError as e:
                     # self.logger.write(f"{e}\n")

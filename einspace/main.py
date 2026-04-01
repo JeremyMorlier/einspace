@@ -15,6 +15,7 @@ from einspace.compiler import Compiler
 from einspace.data import get_data_loaders
 from einspace.network import Network
 from einspace.search_spaces import EinSpace
+from einspace.search_spaces_memory import EinSpaceMemoryEfficient
 from einspace.search_strategies import RandomSearch, RegularisedEvolution
 from einspace.seed_architectures import seed_architectures
 from einspace.trainers import Trainer
@@ -150,7 +151,11 @@ if __name__ == "__main__":
         val_loader = original_test_loader
     test_loader = original_test_loader
 
-    einspace = EinSpace(
+    use_memory_efficient_search_space = config.get("search_space_memory_efficient", False)
+    search_space_cls = EinSpaceMemoryEfficient if use_memory_efficient_search_space else EinSpace
+    logger.info(f"Using search space: {search_space_cls.__name__}")
+
+    einspace = search_space_cls(
         input_shape=(
             config["batch_size"],
             config["channels"],

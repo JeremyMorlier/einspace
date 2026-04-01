@@ -2,11 +2,13 @@ from copy import deepcopy
 from random import choice
 from time import time
 import traceback
+import psutil
 
 import torch
 import torch.nn as nn
 from sklearn.metrics import accuracy_score, mean_squared_error, r2_score
 from torch import optim
+import wandb
 
 from einspace.utils import logits_to_preds, kendall_rank_correlation
 from einspace.data_utils.darcyflow import LpLoss
@@ -215,6 +217,17 @@ class Trainer:
                             ),
                             flush=True,
                         )
+
+                    # Log to wandb with memory stats
+                    try:
+                        log_dict = {
+                            "loss": loss.item(),
+                            "val_score": valid_score,
+                            "epoch_time": int(time() - epoch_start),
+                        }
+                        wandb.log(log_dict)
+                    except Exception as e:
+                        pass  # Silently fail if wandb not available
                 except ValueError as e:
                     # self.logger.write(f"{e}\n")
                     print(f"Did loss become nan?: {e}")

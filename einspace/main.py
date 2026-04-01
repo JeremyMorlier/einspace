@@ -7,6 +7,7 @@ from datetime import datetime
 
 import torch
 import yaml
+import wandb
 
 from foresight.pruners.predictive import find_measures
 
@@ -112,6 +113,17 @@ if __name__ == "__main__":
     if "train_mode" not in config:
         config["train_mode"] = ["train", "val"]
     pprint(config)
+
+    # Initialize wandb for experiment tracking
+    try:
+        wandb.init(
+            project="einspace",
+            config=config,
+            name=get_exp_name(**config),
+        )
+        logger.info(f"W&B initialized: {wandb.run.url}")
+    except Exception as e:
+        logger.warning(f"Failed to initialize wandb: {e}")
 
     set_seed(config["seed"])
 
@@ -280,4 +292,11 @@ if __name__ == "__main__":
     logger.info("=" * 80)
     logger.info(f"Best accuracy: {best.accuracy} at epoch {best.epoch}")
     logger.info("=" * 80)
+
+    # Finalize wandb experiment
+    try:
+        wandb.finish()
+    except Exception as e:
+        logger.warning(f"Failed to finish wandb: {e}")
+
     logger.info("EinSpace Application Completed Successfully")

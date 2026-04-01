@@ -256,6 +256,8 @@ if __name__ == "__main__":
             continue_search=config["search_strategy_continue_search"],
             architecture_seed=architecture_seed,
             update_population=config["search_strategy"] == "re",
+            init_parallel=config.get("search_strategy_init_parallel", True),
+            init_parallel_workers=config.get("search_strategy_init_parallel_workers", None),
         )
     elif config["search_strategy"] == "rs":
         search_strategy = RandomSearch(

@@ -1,5 +1,6 @@
 import logging
 import traceback
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from collections import defaultdict, deque
 from copy import deepcopy
 from functools import partial
@@ -17,13 +18,7 @@ from tqdm import tqdm
 
 from pympler import asizeof
 
-# Configure logging with timestamps
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - [MEMORY] - %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S",
-)
-logger = logging.getLogger(__name__)
+
 from einspace.search_spaces import EinSpace
 from einspace.utils import (
     ArchitectureCompilationError,
@@ -34,6 +29,53 @@ from einspace.utils import (
     millify,
     recurse_count_nodes,
 )
+
+# Configure logging with timestamps
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - [MEMORY] - %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
+logger = logging.getLogger(__name__)
+
+_RE_INIT_CONTEXT = {}
+
+
+def _set_re_init_context(search_space, compiler, evaluation_fn):
+    global _RE_INIT_CONTEXT
+    _RE_INIT_CONTEXT = {
+        "search_space": search_space,
+        "compiler": compiler,
+        "evaluation_fn": evaluation_fn,
+    }
+
+
+def _build_init_individual(task):
+    """Worker entrypoint for parallel initialization."""
+    individual_id, mode, seed_architecture = task
+    search_space = _RE_INIT_CONTEXT["search_space"]
+    compiler = _RE_INIT_CONTEXT["compiler"]
+    evaluation_fn = _RE_INIT_CONTEXT["evaluation_fn"]
+
+    if mode == "seed":
+        architecture = search_space.recurse_state(
+            seed_architecture,
+            input_shape=search_space.input_shape,
+            input_mode=search_space.input_mode,
+        )
+    else:
+        architecture = search_space.sample()
+
+    modules = compiler.compile(architecture)
+    best_model = evaluation_fn(architecture, modules)
+    individual = Individual(individual_id, None, architecture, modules)
+    individual.accuracy = best_model["val_score"]
+    individual.duration = best_model.get("duration", None)
+    if all(key in best_model for key in ["lr", "momentum", "weight_decay", "epoch"]):
+        individual.hpo_dict = {key: best_model[key] for key in ["lr", "momentum", "weight_decay", "epoch"]}
+    else:
+        individual.hpo_dict = {}
+    return individual
 
 
 def _report_history_size(save_path):
@@ -207,18 +249,14 @@ class RandomSearch:
             # check if the file exists
             if exists(join("results", self.save_name + ".pkl")):
                 print(join("results", self.save_name + ".pkl"))
-                self.history = Population(
-                    load(open(join("results", self.save_name + ".pkl"), "rb"))
-                )
+                self.history = Population(load(open(join("results", self.save_name + ".pkl"), "rb")))
                 print(
                     f"Continuing search from previous results at {self.save_name}.",
                     flush=True,
                 )
             else:
                 self.history = Population([])
-                print(
-                    f"No previous results found at {self.save_name}. Starting new search."
-                )
+                print(f"No previous results found at {self.save_name}. Starting new search.")
         else:
             self.history = Population([])
 
@@ -228,10 +266,7 @@ class RandomSearch:
         individual.accuracy = best_model["val_score"]
         individual.duration = best_model["duration"]
         if "lr" in best_model:
-            individual.hpo_dict = {
-                key: best_model[key]
-                for key in ["lr", "momentum", "weight_decay", "epoch"]
-            }
+            individual.hpo_dict = {key: best_model[key] for key in ["lr", "momentum", "weight_decay", "epoch"]}
         else:
             individual.hpo_dict = {}
         return individual
@@ -239,9 +274,7 @@ class RandomSearch:
     def new_individual(self, iteration):
         architecture = self.search_space.sample()
         modules = self.compiler.compile(architecture)
-        individual = self.create_and_evaluate_individual(
-            architecture, modules, iteration, None
-        )
+        individual = self.create_and_evaluate_individual(architecture, modules, iteration, None)
         return individual
 
     def search(self):
@@ -277,6 +310,8 @@ class RegularisedEvolution:
         continue_search=False,
         architecture_seed=[],  # list of architectures to start with
         update_population=True,  # if True, the population will be updated
+        init_parallel=True,
+        init_parallel_workers=None,
     ):
         """Algorithm for regularized evolution (i.e. aging evolution).
 
@@ -302,13 +337,22 @@ class RegularisedEvolution:
         self.save_name = save_name
         self.architecture_seed = architecture_seed
         self.update_population = update_population
+        self.init_parallel = init_parallel
+        if init_parallel_workers is None:
+            try:
+                cpu_count = mp.cpu_count()
+            except NotImplementedError:
+                cpu_count = 1
+            self.init_parallel_workers = max(
+                1, min(4, cpu_count), 10
+            )  # default to 4 or number of CPUs, but cap at 10 to avoid excessive parallelism
+        else:
+            self.init_parallel_workers = max(1, int(init_parallel_workers))
 
         if continue_search:
             if exists(join("results", self.save_name + ".pkl")):
                 print(join("results", self.save_name + ".pkl"))
-                self.history = Population(
-                    load(open(join("results", self.save_name + ".pkl"), "rb"))
-                )
+                self.history = Population(load(open(join("results", self.save_name + ".pkl"), "rb")))
                 print(
                     f"Continuing search from previous results at {self.save_name}.",
                     flush=True,
@@ -339,14 +383,73 @@ class RegularisedEvolution:
             self.population = Population([])
             self.history = Population([])
 
+    def _save_history(self):
+        with open(join("results", self.save_name + ".pkl"), "wb") as f:
+            dump(self.history.tolist(), f)
+        _report_history_size(join("results", self.save_name + ".pkl"))
+
+    def _evaluate_init_tasks_serial(self, tasks):
+        individuals = []
+        for individual_id, mode, seed_architecture in tasks:
+            try:
+                if mode == "seed":
+                    architecture = self.search_space.recurse_state(
+                        seed_architecture,
+                        input_shape=self.search_space.input_shape,
+                        input_mode=self.search_space.input_mode,
+                    )
+                else:
+                    architecture = self.search_space.sample()
+                modules = self.compiler.compile(architecture)
+                individual = self.create_and_evaluate_individual(architecture, modules, individual_id, None)
+                individuals.append(individual)
+            except Exception as e:
+                print(
+                    f"Error while creating the population at iteration {len(self.history) + 1}: {e}",
+                    flush=True,
+                )
+                print(traceback.format_exc())
+        return individuals
+
+    def _evaluate_init_tasks_parallel(self, tasks):
+        if len(tasks) == 0:
+            return []
+
+        if not self.init_parallel or self.init_parallel_workers <= 1:
+            return self._evaluate_init_tasks_serial(tasks)
+
+        if "fork" not in mp.get_all_start_methods():
+            logger.warning(
+                "Parallel init disabled because 'fork' start method is unavailable. Falling back to serial initialization."
+            )
+            return self._evaluate_init_tasks_serial(tasks)
+
+        workers = min(self.init_parallel_workers, len(tasks))
+        _set_re_init_context(self.search_space, self.compiler, self.evaluation_fn)
+        ctx = mp.get_context("fork")
+        individuals = []
+
+        with ProcessPoolExecutor(max_workers=workers, mp_context=ctx) as executor:
+            future_to_task = {executor.submit(_build_init_individual, task): task for task in tasks}
+            for future in as_completed(future_to_task):
+                try:
+                    individual = future.result()
+                    individuals.append(individual)
+                except Exception as e:
+                    task = future_to_task[future]
+                    print(
+                        f"Parallel init worker failed for task id={task[0]} mode={task[1]}: {e}",
+                        flush=True,
+                    )
+                    print(traceback.format_exc(), flush=True)
+        return individuals
+
     def create_and_evaluate_individual(self, architecture, modules, id, parent_id):
         best_model = self.evaluation_fn(architecture, modules)
         individual = Individual(id, parent_id, architecture, modules)
         individual.accuracy = best_model["val_score"]
         individual.duration = best_model["duration"]
-        individual.hpo_dict = {
-            key: best_model[key] for key in ["lr", "momentum", "weight_decay", "epoch"]
-        }
+        individual.hpo_dict = {key: best_model[key] for key in ["lr", "momentum", "weight_decay", "epoch"]}
         return individual
 
     def new_individual(self, iteration, mode="sample"):
@@ -381,9 +484,7 @@ class RegularisedEvolution:
             architecture = self.search_space.sample()
             parent_id = None
         elif mode == "mutate":
-            parent = self.population.tournament_selection(
-                k=self.sample_size, key=lambda i: i.accuracy
-            )
+            parent = self.population.tournament_selection(k=self.sample_size, key=lambda i: i.accuracy)
             architecture = self.search_space.mutate(parent.arch)
             try:
                 parent_id = parent.id
@@ -391,9 +492,7 @@ class RegularisedEvolution:
                 # legacy version
                 parent_id = None
         modules = self.compiler.compile(architecture)
-        individual = self.create_and_evaluate_individual(
-            architecture, modules, id, parent_id
-        )
+        individual = self.create_and_evaluate_individual(architecture, modules, id, parent_id)
         return individual
 
     def search(self):
@@ -410,82 +509,54 @@ class RegularisedEvolution:
         )
 
         # Initialize the population with random models.
+        if len(self.architecture_seed) > 0 and len(self.population) < self.init_pop_size:
+            print("Creating seed population", flush=True)
+            memory_usage = psutil.virtual_memory()
+            logger.info(f"Memory before seeding: {memory_usage.percent}%")
+            seed_tasks = [
+                (len(self.history) + i, "seed", architecture) for i, architecture in enumerate(self.architecture_seed)
+            ]
+            self.architecture_seed = []
+            population_seed = self._evaluate_init_tasks_parallel(seed_tasks)
+            memory_usage = psutil.virtual_memory()
+            logger.info(f"Memory after seed creation: {memory_usage.percent}%")
+            if len(population_seed) > 0:
+                for _, individual in zip(
+                    range(self.init_pop_size - len(self.population)),
+                    cycle(population_seed),
+                ):
+                    print(f"Adding individual {len(self.history)} to population: {individual}")
+                    # Keep legacy behavior: seed individuals are reused by reference.
+                    self.population.append(individual)
+                    self.history.append(individual)
+                    print(f"Size of individual: {asizeof.asizeof(individual)} bytes")
+                    print(f"Size of Population: {asizeof.asizeof(self.population)} bytes")
+                    print(f"Size of history: {asizeof.asizeof(self.history)} bytes")
+                    self._save_history()
+                print("Seed population created.")
+                memory_usage = psutil.virtual_memory()
+                logger.info(f"Memory after adding seed to population: {memory_usage.percent}%")
+
         while len(self.population) < self.init_pop_size:
-            print(f"Training architecture {len(self.history) + 1}", flush=True)
+            remaining = self.init_pop_size - len(self.population)
+            print(
+                f"Training {remaining} architecture(s) for initialization in parallel (workers={self.init_parallel_workers})",
+                flush=True,
+            )
             memory_usage = psutil.virtual_memory()
             logger.info(
                 f"Memory Usage init: {memory_usage.percent}%, Available: {millify(memory_usage.available, bytes=True)}"
             )
-            try:
-                if len(self.architecture_seed) > 0:
-                    memory_usage = psutil.virtual_memory()
-                    logger.info(f"Memory before seeding: {memory_usage.percent}%")
-                    population_seed = []
-                    while len(self.architecture_seed) > 0:
-                        individual = self.new_individual(len(self.history), mode="seed")
-                        print(individual)
-                        population_seed.append(individual)
-                    memory_usage = psutil.virtual_memory()
-                    logger.info(f"Memory after seed creation: {memory_usage.percent}%")
-                    k = self.init_pop_size // len(population_seed)
-                    for _, individual in zip(
-                        range(self.init_pop_size), cycle(population_seed)
-                    ):
-                        print(
-                            f"Adding individual {len(self.history)} to population: {individual}"
-                        )
-                        # Avoid deepcopy - just use same individual reference
-                        # This saves memory as individuals don't store model data
-                        self.population.append(individual)
-                        self.history.append(individual)
-                        print(
-                            f"Size of individual: {asizeof.asizeof(individual)} bytes"
-                        )
-                        print(
-                            f"Size of Population: {asizeof.asizeof(self.population)} bytes"
-                        )
-                        print(f"Size of history: {asizeof.asizeof(self.history)} bytes")
-
-                    print("Seed population created.")
-                    memory_usage = psutil.virtual_memory()
-                    logger.info(
-                        f"Memory after adding seed to population: {memory_usage.percent}%"
-                    )
-                else:
-                    individual = self.new_individual(len(self.history), mode="sample")
-                    self.population.append(individual)
-                    self.history.append(individual)
-                    print(individual)
-                    memory_usage = psutil.virtual_memory()
-                    logger.info(
-                        f"Memory after adding sampled individual: {memory_usage.percent}%"
-                    )
-            except ArchitectureCompilationError as e:
-                print(
-                    f"Error while creating the population at iteration {len(self.history) + 1}: {e}",
-                    flush=True,
-                )
-            except SearchSpaceSamplingError as e:
-                print(
-                    f"Error while creating the population at iteration {len(self.history) + 1}: {e}",
-                    flush=True,
-                )
-            except TimeoutError as e:
-                print(
-                    f"Error while creating the population at iteration {len(self.history) + 1}: {e}",
-                    flush=True,
-                )
-            except Exception as e:
-                print(
-                    f"Error while creating the population at iteration {len(self.history) + 1}: {e}",
-                    flush=True,
-                )
-                print(traceback.format_exc())
-            # Save history
-            with open(join("results", self.save_name + ".pkl"), "wb") as f:
-                dump(self.history.tolist(), f)
-            _report_history_size(join("results", self.save_name + ".pkl"))
-            # track memory usage
+            sample_tasks = [(len(self.history) + i, "sample", None) for i in range(remaining)]
+            individuals = self._evaluate_init_tasks_parallel(sample_tasks)
+            if len(individuals) == 0:
+                logger.warning("No individuals were created in this initialization round. Retrying...")
+                continue
+            for individual in individuals:
+                self.population.append(individual)
+                self.history.append(individual)
+                print(individual, flush=True)
+                self._save_history()
             memory_usage = psutil.virtual_memory()
             logger.info(
                 f"Memory Usage: {memory_usage.percent}%, Available: {millify(memory_usage.available, bytes=True)}"
@@ -514,9 +585,7 @@ class RegularisedEvolution:
                     self.population.append(child)
                 self.history.append(child)
                 memory_usage = psutil.virtual_memory()
-                logger.info(
-                    f"Memory after adding child to history: {memory_usage.percent}%"
-                )
+                logger.info(f"Memory after adding child to history: {memory_usage.percent}%")
                 print(child, flush=True)
             except Exception as e:
                 print(e, flush=True)
